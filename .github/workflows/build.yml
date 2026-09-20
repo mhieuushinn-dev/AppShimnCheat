@@ -34,22 +34,18 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "XCODE INFORMATION"
+          echo "XCODE"
           echo "======================================"
 
           xcode-select -p
           xcodebuild -version
 
           echo ""
-          echo "======================================"
-          echo "AVAILABLE SDK"
-          echo "======================================"
-
           xcodebuild -showsdks
 
 
       # =========================================================
-      # 3. CHECK REPOSITORY
+      # 3. SHOW REPOSITORY
       # =========================================================
 
       - name: Check Repository Structure
@@ -57,34 +53,78 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "CURRENT DIRECTORY"
+          echo "REPOSITORY"
           echo "======================================"
 
           pwd
 
           echo ""
-          echo "======================================"
-          echo "REPOSITORY FILES"
-          echo "======================================"
-
+          echo "FILES:"
           find . -maxdepth 4 -type f | sort
-
-          echo ""
-          echo "======================================"
-          echo "XCODE PROJECTS"
-          echo "======================================"
-
-          find . \
-            -type d \
-            \( \
-              -name "*.xcodeproj" \
-              -o -name "*.xcworkspace" \
-            \) \
-            -print || true
 
 
       # =========================================================
-      # 4. PREPARE XCODE PROJECT
+      # 4. PREPARE SOURCE FILES
+      # =========================================================
+
+      - name: Prepare Source Files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "PREPARE SHINN CHEAT SOURCE"
+          echo "======================================"
+
+          mkdir -p "ShinnCheat"
+
+          FILES="
+          ContentView.swift
+          Glass.swift
+          HomeView.swift
+          Models.swift
+          ShinnCheatApp.swift
+          SecondaryViews.swift
+          "
+
+          for FILE in $FILES
+          do
+            if [ -f "$FILE" ]; then
+
+              cp "$FILE" "ShinnCheat/$FILE"
+
+              echo "✅ Copied:"
+              echo "   $FILE"
+              echo "   → ShinnCheat/$FILE"
+
+            elif [ -f "ShinnCheat/$FILE" ]; then
+
+              echo "✅ Already exists:"
+              echo "   ShinnCheat/$FILE"
+
+            else
+
+              echo "❌ Missing source file:"
+              echo "   $FILE"
+
+              exit 1
+
+            fi
+          done
+
+          echo ""
+          echo "======================================"
+          echo "SHINN CHEAT SOURCES"
+          echo "======================================"
+
+          find "ShinnCheat" \
+            -maxdepth 1 \
+            -type f \
+            -print \
+            | sort
+
+
+      # =========================================================
+      # 5. PREPARE XCODE PROJECT
       # =========================================================
 
       - name: Prepare Xcode Project
@@ -92,24 +132,16 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "PREPARING XCODE PROJECT"
+          echo "PREPARE XCODE PROJECT"
           echo "======================================"
-
-          # -----------------------------------------------------
-          # Nếu đã có ShinnCheat.xcodeproj
-          # -----------------------------------------------------
 
           if [ -d "ShinnCheat.xcodeproj" ]; then
 
             echo "✅ Found ShinnCheat.xcodeproj"
 
-          # -----------------------------------------------------
-          # Nếu chỉ có project.pbxproj
-          # -----------------------------------------------------
-
           elif [ -f "project.pbxproj" ]; then
 
-            echo "⚠️ ShinnCheat.xcodeproj chưa tồn tại"
+            echo "⚠️ ShinnCheat.xcodeproj not found."
             echo "✅ Found project.pbxproj"
 
             mkdir -p "ShinnCheat.xcodeproj"
@@ -118,30 +150,19 @@ jobs:
               "project.pbxproj" \
               "ShinnCheat.xcodeproj/project.pbxproj"
 
-            echo "✅ Created ShinnCheat.xcodeproj"
-
-          # -----------------------------------------------------
-          # Không tìm thấy project
-          # -----------------------------------------------------
+            echo "✅ Created:"
+            echo "   ShinnCheat.xcodeproj"
 
           else
 
-            echo "❌ Không tìm thấy Xcode project."
-
-            echo ""
-            echo "Cần một trong:"
-            echo "  ShinnCheat.xcodeproj/"
-            echo "  project.pbxproj"
+            echo "❌ Không tìm thấy project.pbxproj"
 
             exit 1
 
           fi
 
           echo ""
-          echo "======================================"
-          echo "PROJECT FILE"
-          echo "======================================"
-
+          echo "PROJECT:"
           find "ShinnCheat.xcodeproj" \
             -maxdepth 2 \
             -type f \
@@ -149,7 +170,7 @@ jobs:
 
 
       # =========================================================
-      # 5. INSPECT XCODE PROJECT
+      # 6. INSPECT PROJECT
       # =========================================================
 
       - name: Inspect Xcode Project
@@ -166,7 +187,7 @@ jobs:
 
 
       # =========================================================
-      # 6. CHECK TARGET
+      # 7. CHECK TARGET
       # =========================================================
 
       - name: Check ShinnCheat Target
@@ -174,7 +195,7 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "CHECK SHINN CHEAT TARGET"
+          echo "CHECK TARGET"
           echo "======================================"
 
           PROJECT_INFO="$(
@@ -187,19 +208,24 @@ jobs:
 
           echo ""
           echo "======================================"
-          echo "SEARCH TARGET"
+          echo "SEARCHING FOR SHINNCHEAT"
           echo "======================================"
 
           if echo "$PROJECT_INFO" | grep -q "ShinnCheat"; then
-            echo "✅ Target/Scheme ShinnCheat được tìm thấy."
+
+            echo "✅ ShinnCheat target/project found"
+
           else
-            echo "❌ Không tìm thấy ShinnCheat trong project."
+
+            echo "❌ Không tìm thấy target ShinnCheat"
+
             exit 1
+
           fi
 
 
       # =========================================================
-      # 7. BUILD
+      # 8. BUILD
       # =========================================================
 
       - name: Build Shinn Cheat
@@ -212,8 +238,7 @@ jobs:
 
           rm -rf build
 
-          mkdir -p \
-            "build/Release-iphoneos"
+          mkdir -p "build/Release-iphoneos"
 
           xcodebuild \
             -project "ShinnCheat.xcodeproj" \
@@ -229,7 +254,7 @@ jobs:
 
           echo ""
           echo "======================================"
-          echo "BUILD FINISHED"
+          echo "BUILD COMPLETE"
           echo "======================================"
 
           find build \
@@ -239,7 +264,7 @@ jobs:
 
 
       # =========================================================
-      # 8. VERIFY APP
+      # 9. VERIFY APP
       # =========================================================
 
       - name: Verify App
@@ -258,7 +283,7 @@ jobs:
             echo "$APP_PATH"
 
             echo ""
-            echo "Các .app đã build:"
+            echo "Các APP hiện có:"
 
             find build \
               -type d \
@@ -278,22 +303,26 @@ jobs:
 
 
       # =========================================================
-      # 9. CHECK APP BINARY
+      # 10. VERIFY EXECUTABLE
       # =========================================================
 
-      - name: Check App Binary
+      - name: Verify App Executable
         run: |
           set -e
 
           APP_PATH="build/Release-iphoneos/ShinnCheat.app"
 
           echo "======================================"
-          echo "CHECK APP BINARY"
+          echo "VERIFY EXECUTABLE"
           echo "======================================"
 
           if [ ! -f "$APP_PATH/ShinnCheat" ]; then
-            echo "❌ Không tìm thấy executable ShinnCheat"
+
+            echo "❌ Không tìm thấy executable:"
+            echo "$APP_PATH/ShinnCheat"
+
             exit 1
+
           fi
 
           echo "✅ Executable found"
@@ -302,7 +331,7 @@ jobs:
 
 
       # =========================================================
-      # 10. CREATE PAYLOAD
+      # 11. CREATE PAYLOAD
       # =========================================================
 
       - name: Prepare IPA
@@ -322,11 +351,11 @@ jobs:
             "build/Release-iphoneos/ShinnCheat.app" \
             "Payload/ShinnCheat.app"
 
-          echo "✅ Payload/ShinnCheat.app created"
+          echo "✅ Payload created"
 
 
       # =========================================================
-      # 11. CREATE IPA
+      # 12. CREATE IPA
       # =========================================================
 
       - name: Create IPA
@@ -352,11 +381,11 @@ jobs:
           echo "IPA CREATED"
           echo "======================================"
 
-          ls -lh ShinnCheat.ipa
+          ls -lh "ShinnCheat.ipa"
 
 
       # =========================================================
-      # 12. VERIFY IPA
+      # 13. VERIFY IPA
       # =========================================================
 
       - name: Verify IPA
@@ -368,19 +397,22 @@ jobs:
           echo "======================================"
 
           if [ ! -f "ShinnCheat.ipa" ]; then
-            echo "❌ ShinnCheat.ipa không tồn tại."
+
+            echo "❌ ShinnCheat.ipa không tồn tại"
+
             exit 1
+
           fi
 
-          echo "✅ ShinnCheat.ipa tồn tại."
+          echo "✅ ShinnCheat.ipa tồn tại"
 
-          file ShinnCheat.ipa
+          file "ShinnCheat.ipa"
 
-          ls -lh ShinnCheat.ipa
+          ls -lh "ShinnCheat.ipa"
 
 
       # =========================================================
-      # 13. UPLOAD IPA
+      # 14. UPLOAD IPA
       # =========================================================
 
       - name: Upload IPA
@@ -393,7 +425,7 @@ jobs:
 
 
       # =========================================================
-      # 14. UPLOAD BUILD LOGS IF FAILED
+      # 15. UPLOAD LOGS IF FAILED
       # =========================================================
 
       - name: Upload Build Logs
