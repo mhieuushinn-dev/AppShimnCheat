@@ -3,13 +3,19 @@ import Foundation
 enum AppInfo {
     static let telegramHandle = "@ShinnThieuu"
     static let telegramURL = URL(string: "https://t.me/ShinnThieuu")!
+
     static let bankName = "MB Bank"
     static let bankAccount = "104877777"
+
     static let defaultRepoName = "Shinn Cheat Share"
-    static let defaultRepoURL = URL(string: "https://raw.githubusercontent.com/mhieuushinn-dev/ShinnCheatShare/main/ShinnThieuu.json")!
+    static let defaultRepoURL = URL(
+        string: "https://raw.githubusercontent.com/mhieuushinn-dev/ShinnCheatShare/main/ShinnThieuu.json"
+    )!
 
     static var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "2.0"
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "2.0"
     }
 }
 
@@ -29,18 +35,34 @@ struct RepoPackage: Codable, Identifiable, Hashable {
     let description: String?
     let category: String?
     let tags: [String]?
+
     let download: String
     let sha256: String?
     let size: Int?
     let icon: String?
 
-    var id: String { identifier }
+    // MARK: - Patch
+
+    /// Đường dẫn tương đối trong Documents của app.
+    /// Ví dụ: "Patches/example"
+    let patchPath: String?
+
+    /// URL scheme mở sau khi Apply thành công.
+    /// Ví dụ: "freefire://" hoặc "freefiremax://"
+    let openURL: String?
+
+    var id: String {
+        identifier
+    }
 }
 
 struct CategoryInfo: Identifiable {
     let name: String
     let count: Int
-    var id: String { name }
+
+    var id: String {
+        name
+    }
 }
 
 enum Route: Hashable {
@@ -52,5 +74,8 @@ enum Route: Hashable {
 }
 
 func formatBytes(_ n: Int) -> String {
-    ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+    ByteCountFormatter.string(
+        fromByteCount: Int64(n),
+        countStyle: .file
+    )
 }
