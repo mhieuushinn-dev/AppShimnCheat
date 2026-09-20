@@ -1,37 +1,29 @@
-      - name: Build Shinn Cheat
+      - name: Verify App
         run: |
           set -e
 
+          APP_PATH="$PWD/build/Release-iphoneos/ShinnCheat.app"
+
           echo "======================================"
-          echo "BUILD SHINN CHEAT"
-          echo "======================================"
-
-          rm -rf build
-
-          mkdir -p "$PWD/build/Release-iphoneos"
-
-          xcodebuild \
-            -project "ShinnCheat.xcodeproj" \
-            -target "ShinnCheat" \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath "$PWD/DerivedData" \
-            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.shinn.shinncheat" \
-            GENERATE_INFOPLIST_FILE=YES \
-            INFOPLIST_FILE="" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            clean build
-
-          echo ""
-          echo "======================================"
-          echo "BUILD RESULT"
+          echo "VERIFY APP"
           echo "======================================"
 
-          find "$PWD/build" \
-            -type d \
-            -name "*.app" \
-            -print
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ Không tìm thấy:"
+            echo "$APP_PATH"
+
+            find "$PWD/build" -maxdepth 5 -print || true
+
+            exit 1
+          fi
+
+          echo "✅ ShinnCheat.app FOUND"
+
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "❌ Info.plist vẫn chưa được tạo"
+            exit 1
+          fi
+
+          echo "✅ Info.plist FOUND"
+
+          ls -la "$APP_PATH"
