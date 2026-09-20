@@ -6,19 +6,33 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.0"
+    CURRENT_PROJECT_VERSION: "2"
 targets:
   ShinnCheat:
     type: application
     platform: iOS
     sources:
+      - path: ShinnCheat
+        optional: true
       - path: ShinnCheatApp.swift
+        optional: true
       - path: ContentView.swift
+        optional: true
       - path: Glass.swift
+        optional: true
       - path: HomeView.swift
+        optional: true
       - path: Models.swift
+        optional: true
+      - path: Localization.swift
+        optional: true
+      - path: RepoStore.swift
+        optional: true
+      - path: PackageViews.swift
+        optional: true
       - path: SecondaryViews.swift
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shinn.shinncheat
@@ -28,6 +42,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: "Shinn Cheat"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         CODE_SIGNING_ALLOWED: NO
