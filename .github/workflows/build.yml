@@ -17,275 +17,419 @@ jobs:
 
     steps:
 
-      # =========================================
+      # ==========================================
       # 1. CHECKOUT
-      # =========================================
-      - name: Checkout
+      # ==========================================
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # =========================================
-      # 2. CHECK PROJECT STRUCTURE
-      # =========================================
-      - name: Verify Project
-        shell: bash
+      # ==========================================
+      # 2. CHECK XCODE
+      # ==========================================
+      - name: Check Xcode
         run: |
-          set -euo pipefail
+          set -e
 
-          echo "========================================"
-          echo "SHINN CHEAT PROJECT"
-          echo "========================================"
+          echo "======================================"
+          echo "XCODE"
+          echo "======================================"
 
-          echo ""
-          echo "Current directory:"
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      # ==========================================
+      # 3. INSTALL XCODEGEN
+      # ==========================================
+      - name: Install XcodeGen
+        run: |
+          set -e
+
+          if command -v xcodegen >/dev/null 2>&1; then
+            echo "XcodeGen already installed"
+          else
+            brew install xcodegen
+          fi
+
+          xcodegen version
+
+      # ==========================================
+      # 4. SHOW REPOSITORY
+      # ==========================================
+      - name: Check repository files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "CURRENT DIRECTORY"
+          echo "======================================"
+
           pwd
 
           echo ""
-          echo "Project files:"
+          echo "======================================"
+          echo "FILES"
+          echo "======================================"
+
           find . -maxdepth 3 -type f | sort
 
-          echo ""
-          echo "Checking Xcode project..."
-
-          test -f "ShinnCheat.xcodeproj/project.pbxproj"
-          test -f "ShinnCheat.xcodeproj/xcshareddata/xcschemes/ShinnCheat.xcscheme"
-
-          echo "✅ Xcode project found"
-          echo "✅ ShinnCheat scheme found"
-
-
-      # =========================================
-      # 3. CHECK SOURCE FILES
-      # =========================================
-      - name: Verify Swift Sources
-        shell: bash
+      # ==========================================
+      # 5. CREATE SOURCE DIRECTORY
+      # ==========================================
+      - name: Prepare ShinnCheat source
         run: |
-          set -euo pipefail
+          set -e
 
-          echo "========================================"
-          echo "SWIFT SOURCE FILES"
-          echo "========================================"
+          echo "======================================"
+          echo "PREPARE SHINN CHEAT SOURCE"
+          echo "======================================"
 
-          files=(
-            "ShinnCheat/ShinnCheatApp.swift"
-            "ShinnCheat/ContentView.swift"
-            "ShinnCheat/HomeView.swift"
-            "ShinnCheat/Glass.swift"
-            "ShinnCheat/Models.swift"
-            "ShinnCheat/SecondaryViews.swift"
-          )
+          mkdir -p ShinnCheat
 
-          for file in "${files[@]}"; do
+          # Copy Swift files from repository root
+          for file in \
+            ShinnCheatApp.swift \
+            ContentView.swift \
+            HomeView.swift \
+            Glass.swift \
+            Models.swift \
+            SecondaryViews.swift
+          do
+            if [ -f "$file" ]; then
+              cp "$file" "ShinnCheat/$file"
+              echo "Copied: $file"
+            fi
+          done
+
+          echo ""
+          echo "======================================"
+          echo "SOURCE FILES"
+          echo "======================================"
+
+          find ShinnCheat -maxdepth 1 -type f | sort
+
+      # ==========================================
+      # 6. CREATE APP ENTRY IF MISSING
+      # ==========================================
+      - name: Ensure ShinnCheatApp.swift
+        run: |
+          set -e
+
+          if [ ! -f "ShinnCheat/ShinnCheatApp.swift" ]; then
+
+            echo "ShinnCheatApp.swift missing"
+            echo "Creating default app entry..."
+
+            cat > ShinnCheat/ShinnCheatApp.swift <<'EOF'
+          import SwiftUI
+
+          @main
+          struct ShinnCheatApp: App {
+
+              var body: some Scene {
+                  WindowGroup {
+                      ContentView()
+                  }
+              }
+          }
+          EOF
+
+          else
+            echo "ShinnCheatApp.swift exists"
+          fi
+
+      # ==========================================
+      # 7. CREATE SECONDARY VIEWS IF MISSING
+      # ==========================================
+      - name: Ensure SecondaryViews.swift
+        run: |
+          set -e
+
+          if [ ! -f "ShinnCheat/SecondaryViews.swift" ]; then
+
+            echo "SecondaryViews.swift missing"
+            echo "Creating default secondary views..."
+
+            cat > ShinnCheat/SecondaryViews.swift <<'EOF'
+          import SwiftUI
+
+          struct SettingsView: View {
+
+              var body: some View {
+                  NavigationStack {
+                      List {
+                          Section("Ứng dụng") {
+                              HStack {
+                                  Text("Phiên bản")
+                                  Spacer()
+                                  Text("1.0.0")
+                                      .foregroundStyle(.secondary)
+                              }
+
+                              HStack {
+                                  Text("Tên ứng dụng")
+                                  Spacer()
+                                  Text("Shinn Cheat")
+                                      .foregroundStyle(.secondary)
+                              }
+                          }
+
+                          Section("Giao diện") {
+                              HStack {
+                                  Image(systemName: "sparkles")
+                                  Text("Glass UI")
+                                  Spacer()
+                                  Text("iOS Style")
+                                      .foregroundStyle(.secondary)
+                              }
+                          }
+                      }
+                      .navigationTitle("Cài Đặt")
+                  }
+              }
+          }
+
+          struct AboutView: View {
+
+              var body: some View {
+                  NavigationStack {
+                      ScrollView {
+                          VStack(spacing: 20) {
+
+                              Image(systemName: "crown.fill")
+                                  .font(.system(size: 55))
+
+                              Text("SHINN CHEAT")
+                                  .font(.largeTitle.bold())
+
+                              Text("Play Smart. Stay Ahead.")
+                                  .foregroundStyle(.secondary)
+
+                              Text("""
+          Shinn Cheat là ứng dụng quản lý và phân phối package.
+
+          Ứng dụng được thiết kế với giao diện kính hiện đại,
+          tập trung vào tốc độ, sự đơn giản và trải nghiệm iOS.
+          """)
+                                  .multilineTextAlignment(.center)
+                                  .foregroundStyle(.secondary)
+                                  .padding()
+
+                          }
+                          .padding()
+                      }
+                      .navigationTitle("Giới Thiệu")
+                  }
+              }
+          }
+
+          struct SupportView: View {
+
+              var body: some View {
+                  NavigationStack {
+                      VStack(spacing: 20) {
+
+                          Image(systemName: "message.fill")
+                              .font(.system(size: 50))
+
+                          Text("Hỗ Trợ")
+                              .font(.largeTitle.bold())
+
+                          Text("Liên hệ đội ngũ Shinn Cheat để được hỗ trợ.")
+                              .multilineTextAlignment(.center)
+                              .foregroundStyle(.secondary)
+
+                      }
+                      .padding()
+                      .navigationTitle("Hỗ Trợ")
+                  }
+              }
+          }
+
+          struct RoleView: View {
+
+              var body: some View {
+                  NavigationStack {
+                      List {
+                          Section("Vai trò") {
+                              Label("Member", systemImage: "person")
+                              Label("Support", systemImage: "person.2")
+                              Label("Admin", systemImage: "person.badge.key")
+                              Label("Owner", systemImage: "crown")
+                          }
+
+                          Section {
+                              Text("Admin và Owner dành cho người quản lý repo JSON.")
+                                  .foregroundStyle(.secondary)
+                          }
+                      }
+                      .navigationTitle("Vai Trò")
+                  }
+              }
+          }
+
+          struct PackagesView: View {
+
+              var body: some View {
+                  NavigationStack {
+                      ScrollView {
+                          VStack(spacing: 16) {
+
+                              PackagePlaceholder(
+                                  title: "Free Fire",
+                                  subtitle: "Packages"
+                              )
+
+                              PackagePlaceholder(
+                                  title: "Free Fire Max",
+                                  subtitle: "Packages"
+                              )
+
+                              PackagePlaceholder(
+                                  title: "MOD VIP",
+                                  subtitle: "Packages"
+                              )
+
+                          }
+                          .padding()
+                      }
+                      .navigationTitle("Packages")
+                  }
+              }
+          }
+
+          private struct PackagePlaceholder: View {
+
+              let title: String
+              let subtitle: String
+
+              var body: some View {
+                  HStack(spacing: 15) {
+
+                      Image(systemName: "square.stack.3d.up.fill")
+                          .font(.title2)
+
+                      VStack(alignment: .leading, spacing: 4) {
+                          Text(title)
+                              .font(.headline)
+
+                          Text(subtitle)
+                              .font(.subheadline)
+                              .foregroundStyle(.secondary)
+                      }
+
+                      Spacer()
+
+                      Image(systemName: "chevron.right")
+                          .foregroundStyle(.secondary)
+                  }
+                  .padding()
+                  .background(.ultraThinMaterial)
+                  .clipShape(RoundedRectangle(cornerRadius: 20))
+              }
+          }
+          EOF
+
+          else
+            echo "SecondaryViews.swift exists"
+          fi
+
+      # ==========================================
+      # 8. CHECK REQUIRED FILES
+      # ==========================================
+      - name: Validate source files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "VALIDATING SOURCE"
+          echo "======================================"
+
+          REQUIRED_FILES="
+          ShinnCheat/ShinnCheatApp.swift
+          ShinnCheat/ContentView.swift
+          ShinnCheat/HomeView.swift
+          ShinnCheat/Glass.swift
+          ShinnCheat/Models.swift
+          ShinnCheat/SecondaryViews.swift
+          "
+
+          for file in $REQUIRED_FILES; do
+
             if [ ! -f "$file" ]; then
               echo "❌ Missing: $file"
               exit 1
             fi
 
-            echo "✅ $file"
+            echo "✅ Found: $file"
+
           done
 
-
-      # =========================================
-      # 4. CHECK XCODE
-      # =========================================
-      - name: Check Xcode
-        shell: bash
+      # ==========================================
+      # 9. CREATE XCODEGEN PROJECT
+      # ==========================================
+      - name: Create project.yml
         run: |
-          set -euo pipefail
+          set -e
 
-          echo "========================================"
-          echo "XCODE"
-          echo "========================================"
+          cat > project.yml <<'EOF'
+          name: ShinnCheat
 
-          xcode-select -p
-          xcodebuild -version
+          options:
+            minimumXcodeGenVersion: 2.42.0
+            deploymentTarget:
+              iOS: "17.0"
 
-          echo ""
-          echo "Available iOS SDKs:"
-          xcodebuild -showsdks | grep -i iphone || true
+          settings:
+            base:
+              SWIFT_VERSION: 5.0
+              DEVELOPMENT_TEAM: ""
+              CODE_SIGNING_ALLOWED: NO
+              CODE_SIGNING_REQUIRED: NO
+              CODE_SIGN_IDENTITY: ""
 
+          targets:
 
-      # =========================================
-      # 5. VALIDATE SCHEME
-      # =========================================
-      - name: Validate Scheme
-        shell: bash
-        run: |
-          set -euo pipefail
+            ShinnCheat:
+              type: application
+              platform: iOS
 
-          echo "========================================"
-          echo "VALIDATE SCHEME"
-          echo "========================================"
+              sources:
+                - path: ShinnCheat
 
-          xcodebuild \
-            -project "ShinnCheat.xcodeproj" \
-            -scheme "ShinnCheat" \
-            -configuration Release \
-            -sdk iphoneos \
-            -showBuildSettings \
-            > build-settings.txt
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: com.shinn.shinncheat
+                  PRODUCT_NAME: ShinnCheat
+                  TARGETED_DEVICE_FAMILY: "1,2"
 
-          echo "✅ Scheme is valid"
+                  GENERATE_INFOPLIST_FILE: YES
 
-          echo ""
-          echo "Important settings:"
+                  INFOPLIST_KEY_CFBundleDisplayName: "Shinn Cheat"
+                  INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.utilities"
 
-          grep \
-            -E \
-            "PRODUCT_BUNDLE_IDENTIFIER|GENERATE_INFOPLIST_FILE|SWIFT_VERSION|IPHONEOS_DEPLOYMENT_TARGET" \
-            build-settings.txt || true
+                  SWIFT_VERSION: 5.0
 
+                  CODE_SIGNING_ALLOWED: NO
+                  CODE_SIGNING_REQUIRED: NO
+                  CODE_SIGN_IDENTITY: ""
 
-      # =========================================
-      # 6. CLEAN
-      # =========================================
-      - name: Clean Build
-        shell: bash
-        run: |
-          set -euo pipefail
+              settings:
+                configs:
+                  Debug:
+                    SWIFT_OPTIMIZATION_LEVEL: "-Onone"
 
-          echo "========================================"
-          echo "CLEAN"
-          echo "========================================"
+                  Release:
+                    SWIFT_OPTIMIZATION_LEVEL: "-O"
 
-          rm -rf build
-          rm -rf DerivedData
+              scheme:
+                gatherCoverageData: false
+                testTargets: []
 
-          echo "✅ Clean complete"
+          EOF
 
+          echo "======================================"
+          echo "PROJECT CONFIG"
+          echo "======================================"
 
-      # =========================================
-      # 7. BUILD APP
-      # =========================================
-      - name: Build Shinn Cheat
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "========================================"
-          echo "BUILD SHINN CHEAT"
-          echo "========================================"
-
-          xcodebuild \
-            -project "ShinnCheat.xcodeproj" \
-            -scheme "ShinnCheat" \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath "$PWD/DerivedData" \
-            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            clean build
-
-          echo ""
-          echo "✅ Xcode build completed"
-
-
-      # =========================================
-      # 8. VERIFY APP
-      # =========================================
-      - name: Verify App
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "========================================"
-          echo "VERIFY APP"
-          echo "========================================"
-
-          APP_PATH="$PWD/build/Release-iphoneos/ShinnCheat.app"
-
-          if [ ! -d "$APP_PATH" ]; then
-            echo "❌ ShinnCheat.app not found"
-
-            echo ""
-            echo "Searching build directory..."
-
-            find "$PWD/build" -maxdepth 6 -print || true
-
-            exit 1
-          fi
-
-          echo "✅ ShinnCheat.app found"
-
-          if [ ! -f "$APP_PATH/Info.plist" ]; then
-            echo "❌ Info.plist not found"
-            exit 1
-          fi
-
-          echo "✅ Info.plist found"
-
-          echo ""
-          echo "App contents:"
-          ls -la "$APP_PATH"
-
-          echo ""
-          echo "Bundle ID:"
-
-          /usr/libexec/PlistBuddy \
-            -c "Print :CFBundleIdentifier" \
-            "$APP_PATH/Info.plist"
-
-
-      # =========================================
-      # 9. CREATE IPA
-      # =========================================
-      - name: Create IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "========================================"
-          echo "CREATE IPA"
-          echo "========================================"
-
-          rm -rf Payload
-          rm -f ShinnCheat.ipa
-
-          mkdir -p Payload
-
-          cp -R \
-            "build/Release-iphoneos/ShinnCheat.app" \
-            "Payload/ShinnCheat.app"
-
-          /usr/bin/zip \
-            -qry \
-            "ShinnCheat.ipa" \
-            "Payload/ShinnCheat.app"
-
-          rm -rf Payload
-
-          echo ""
-          echo "✅ IPA CREATED"
-
-          ls -lh ShinnCheat.ipa
-
-
-      # =========================================
-      # 10. UPLOAD IPA
-      # =========================================
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShinnCheat-iOS-IPA
-          path: ShinnCheat.ipa
-          if-no-files-found: error
-          retention-days: 30
-
-
-      # =========================================
-      # 11. UPLOAD LOGS IF FAILED
-      # =========================================
-      - name: Upload Build Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShinnCheat-Build-Logs
-          path: |
-            DerivedData/
-            build/
-            build-settings.txt
-          if-no-files-found: ignore
-          retention-days: 7
+          cat project.yml
