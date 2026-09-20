@@ -147,35 +147,6 @@ struct HomeView: View {
                         weight: .bold
                     )
                 )
-
-            HStack(spacing: 10) {
-
-                Image(
-                    systemName:
-                        "exclamationmark.triangle.fill"
-                )
-
-                Text(settings.t(.heroNote))
-                    .font(
-                        .system(
-                            size: 13,
-                            weight: .semibold
-                        )
-                    )
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .frame(
-                maxWidth: .infinity,
-                alignment: .leading
-            )
-            .background(
-                Color.primary.opacity(0.08),
-                in: RoundedRectangle(
-                    cornerRadius: 16,
-                    style: .continuous
-                )
-            )
         }
         .padding(20)
         .frame(
