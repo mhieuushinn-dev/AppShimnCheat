@@ -1,31 +1,26 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var route: Route? = nil
+    @State private var path: [Route] = []
 
     var body: some View {
-        NavigationStack {
-            HomeView(route: $route)
-                .navigationDestination(item: $route) { route in
+        NavigationStack(path: $path) {
+            HomeView(open: { path.append($0) })
+                .navigationDestination(for: Route.self) { route in
                     switch route {
-                    case .packages:
-                        PackagesView()
+                    case .packages(let category):
+                        PackagesView(initialCategory: category)
+                    case .detail(let id):
+                        PackageDetailView(packageID: id)
                     case .settings:
                         SettingsView()
                     case .about:
                         AboutView()
                     case .support:
                         SupportView()
-                    case .role:
-                        RoleView()
                     }
                 }
         }
-        .tint(.white)
+        .tint(.primary)
     }
-}
-
-enum Route: String, Identifiable {
-    case packages, settings, about, support, role
-    var id: String { rawValue }
 }
