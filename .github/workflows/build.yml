@@ -1,38 +1,128 @@
-      - name: Prepare Shinn Cheat Source
+name: Build Shinn Cheat
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Shinn Cheat IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Files
+        run: |
+          echo "===== ROOT ====="
+          pwd
+          echo "===== FILES ====="
+          find . -maxdepth 3 -type f | sort
+
+      - name: Prepare Source
         run: |
           set -e
 
-          echo "======================================"
-          echo "PREPARE SHINN CHEAT SOURCE"
-          echo "======================================"
-
           mkdir -p ShinnCheat
 
-          files=(
-            "ShinnCheatApp.swift"
-            "ContentView.swift"
-            "HomeView.swift"
-            "Glass.swift"
-            "Models.swift"
-            "SecondaryViews.swift"
-          )
+          cp ContentView.swift ShinnCheat/ContentView.swift
+          cp Glass.swift ShinnCheat/Glass.swift
+          cp HomeView.swift ShinnCheat/HomeView.swift
+          cp Models.swift ShinnCheat/Models.swift
+          cp ShinnCheatApp.swift ShinnCheat/ShinnCheatApp.swift
+          cp SecondaryViews.swift ShinnCheat/SecondaryViews.swift
 
-          for file in "${files[@]}"; do
-            if [ ! -f "$file" ]; then
-              echo "❌ Missing source file: $file"
-              exit 1
-            fi
+          echo "===== SOURCE READY ====="
+          find ShinnCheat -type f -maxdepth 1 | sort
 
-            cp "$file" "ShinnCheat/$file"
+      - name: Check Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
 
-            echo "✅ Copied:"
-            echo "   $file"
-            echo "   → ShinnCheat/$file"
-          done
+      - name: Check Project
+        run: |
+          set -e
 
-          echo ""
-          echo "======================================"
-          echo "SOURCE FILES READY"
-          echo "======================================"
+          if [ ! -d "ShinnCheat.xcodeproj" ]; then
+            echo "ERROR: ShinnCheat.xcodeproj not found"
+            echo "Searching for Xcode projects..."
+            find . -name "*.xcodeproj" -print
+            exit 1
+          fi
 
-          find ShinnCheat -maxdepth 1 -type f -print
+          echo "OK: ShinnCheat.xcodeproj found"
+
+      - name: Clean
+        run: |
+          rm -rf build
+          rm -rf DerivedData
+
+      - name: Build
+        run: |
+          set -e
+
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -scheme "ShinnCheat" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/DerivedData" \
+            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            GENERATE_INFOPLIST_FILE=YES \
+            clean build
+
+      - name: Verify App
+        run: |
+          set -e
+
+          APP_PATH="$PWD/build/Release-iphoneos/ShinnCheat.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: ShinnCheat.app not found"
+            find "$PWD/build" -maxdepth 5 -print || true
+            exit 1
+          fi
+
+          echo "OK: ShinnCheat.app found"
+
+          ls -la "$APP_PATH"
+
+      - name: Create IPA
+        run: |
+          set -e
+
+          rm -rf Payload
+          rm -f ShinnCheat.ipa
+
+          mkdir Payload
+
+          cp -R \
+            "build/Release-iphoneos/ShinnCheat.app" \
+            "Payload/ShinnCheat.app"
+
+          zip -r ShinnCheat.ipa Payload
+
+          rm -rf Payload
+
+          echo "===== IPA ====="
+          ls -lh ShinnCheat.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-iOS-IPA
+          path: ShinnCheat.ipa
+          if-no-files-found: error
+          retention-days: 30
