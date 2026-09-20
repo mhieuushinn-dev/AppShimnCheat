@@ -1,23 +1,39 @@
 # Shinn Cheat iOS
 
-Ứng dụng SwiftUI mới theo phong cách monochrome black/white glass.
+SwiftUI iOS app using the requested monochrome black/white glass UI.
 
-## Đặc điểm
+## Project structure
 
-- Không Device UID
-- Không Device Key
-- Không License Key
-- Member sử dụng miễn phí
-- Owner/Admin dành cho quản trị repo
-- Không có thanh tab dưới cùng
-- Có Cài Đặt / Giới Thiệu / Hỗ Trợ / Gói
-- Kiến trúc có thể mở rộng để đọc repo JSON
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── build.yml
+├── ShinnCheat/
+│   ├── ShinnCheatApp.swift
+│   ├── ContentView.swift
+│   ├── HomeView.swift
+│   ├── Glass.swift
+│   ├── Models.swift
+│   └── SecondaryViews.swift
+└── ShinnCheat.xcodeproj/
+    ├── project.pbxproj
+    └── xcshareddata/
+        └── xcschemes/
+            └── ShinnCheat.xcscheme
+```
 
-## Build local
+## Build
 
-Mở `ShinnCheat.xcodeproj` bằng Xcode và Run.
+Open `ShinnCheat.xcodeproj` in Xcode.
 
-## GitHub Actions / IPA
+The GitHub Actions workflow builds an **unsigned** IPA. An unsigned IPA is an archive artifact and is not directly installable on a normal iPhone until it is signed with an appropriate Apple certificate/provisioning profile.
 
-GitHub Actions có thể build/archive. Để tạo IPA cài được trên iPhone cần Apple signing
-(certificate + provisioning profile). Không commit certificate/private key vào repository.
+## Current app behavior
+
+- Member-oriented free UI.
+- No Device UID/key/license flow.
+- Owner/Admin/Support information screens.
+- No bottom tab bar.
+- Black/white glass-style interface.
+- Settings and About screens.
