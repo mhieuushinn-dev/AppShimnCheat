@@ -1,39 +1,43 @@
-      - name: Prepare Xcode Project
+name: Build Shinn Cheat
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
         run: |
-          set -e
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
 
-          echo "=== Current directory ==="
-          pwd
-
-          echo "=== Files ==="
-          find . -maxdepth 2 -type f | sort
-
-          if [ ! -f "project.pbxproj" ]; then
-            echo "❌ Không tìm thấy project.pbxproj"
-            exit 1
-          fi
-
-          mkdir -p "ShinnCheat.xcodeproj"
-          cp "project.pbxproj" "ShinnCheat.xcodeproj/project.pbxproj"
-
-          echo "✅ Đã tạo ShinnCheat.xcodeproj"
-
-          xcodebuild \
-            -project "ShinnCheat.xcodeproj" \
-            -list
-
-      - name: Build Shinn Cheat
+      - name: Build
         run: |
-          set -e
-
           xcodebuild \
-            -project "ShinnCheat.xcodeproj" \
-            -target "ShinnCheat" \
-            -configuration Release \
+            -project ShinnCheat.xcodeproj \
+            -scheme ShinnCheat \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath "$PWD/build" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            clean build
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/ShinnCheat.app Payload/
+          zip -r ShinnCheat-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-unsigned-ipa
+          path: ShinnCheat-unsigned.ipa
