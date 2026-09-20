@@ -1,3 +1,115 @@
+name: Build Shinn Cheat
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Shinn Cheat IPA
+    runs-on: macos-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Repository
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "REPOSITORY"
+          echo "======================================"
+
+          pwd
+
+          echo ""
+          echo "FILES:"
+          find . -maxdepth 3 -type f | sort
+
+          echo ""
+          echo "XCODE PROJECTS:"
+          find . -name "*.xcodeproj" -print
+
+      - name: Check Xcode
+        run: |
+          set -e
+
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Verify Source Files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "VERIFY SOURCE"
+          echo "======================================"
+
+          required_files=(
+            "ShinnCheat/ShinnCheatApp.swift"
+            "ShinnCheat/ContentView.swift"
+            "ShinnCheat/HomeView.swift"
+            "ShinnCheat/Glass.swift"
+            "ShinnCheat/Models.swift"
+            "ShinnCheat/SecondaryViews.swift"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing: $file"
+              exit 1
+            fi
+
+            echo "✅ Found: $file"
+          done
+
+      - name: Verify Xcode Project
+        run: |
+          set -e
+
+          if [ ! -d "ShinnCheat.xcodeproj" ]; then
+            echo "❌ ShinnCheat.xcodeproj không tồn tại"
+            exit 1
+          fi
+
+          echo "✅ ShinnCheat.xcodeproj FOUND"
+
+      - name: Clean
+        run: |
+          rm -rf build
+          rm -rf DerivedData
+
+      - name: Build Shinn Cheat
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "BUILD SHINN CHEAT"
+          echo "======================================"
+
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -scheme "ShinnCheat" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/DerivedData" \
+            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            GENERATE_INFOPLIST_FILE=YES \
+            clean build
+
       - name: Verify App
         run: |
           set -e
@@ -9,21 +121,63 @@
           echo "======================================"
 
           if [ ! -d "$APP_PATH" ]; then
-            echo "❌ Không tìm thấy:"
-            echo "$APP_PATH"
-
+            echo "❌ Không tìm thấy ShinnCheat.app"
             find "$PWD/build" -maxdepth 5 -print || true
-
             exit 1
           fi
 
           echo "✅ ShinnCheat.app FOUND"
 
           if [ ! -f "$APP_PATH/Info.plist" ]; then
-            echo "❌ Info.plist vẫn chưa được tạo"
+            echo "❌ Không tìm thấy Info.plist"
             exit 1
           fi
 
           echo "✅ Info.plist FOUND"
 
           ls -la "$APP_PATH"
+
+      - name: Create IPA
+        run: |
+          set -e
+
+          rm -rf Payload
+          rm -f ShinnCheat.ipa
+
+          mkdir -p Payload
+
+          cp -R \
+            "build/Release-iphoneos/ShinnCheat.app" \
+            "Payload/ShinnCheat.app"
+
+          cd Payload
+
+          zip -r "../ShinnCheat.ipa" "ShinnCheat.app"
+
+          cd ..
+
+          rm -rf Payload
+
+          echo "======================================"
+          echo "IPA CREATED"
+          echo "======================================"
+
+          ls -lh ShinnCheat.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-iOS-IPA
+          path: ShinnCheat.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-Build-Logs
+          path: |
+            DerivedData/
+            build/
+          retention-days: 7
