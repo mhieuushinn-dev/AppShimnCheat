@@ -1,0 +1,101 @@
+name: Build Shinn Cheat
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+
+    steps:
+      # 1. Lấy source từ repository
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Kiểm tra môi trường Xcode
+      - name: Check Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      # 3. Build iOS Release
+      - name: Build Shinn Cheat
+        run: |
+          set -e
+
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -scheme "ShinnCheat" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      # 4. Kiểm tra file .app
+      - name: Verify App
+        run: |
+          set -e
+
+          APP_PATH="build/Build/Products/Release-iphoneos/ShinnCheat.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ Không tìm thấy ShinnCheat.app"
+            exit 1
+          fi
+
+          echo "✅ Tìm thấy:"
+          ls -la "$APP_PATH"
+
+      # 5. Tạo IPA
+      - name: Create IPA
+        run: |
+          set -e
+
+          rm -rf Payload
+          rm -f ShinnCheat.ipa
+
+          mkdir -p Payload
+
+          cp -R \
+            "build/Build/Products/Release-iphoneos/ShinnCheat.app" \
+            "Payload/ShinnCheat.app"
+
+          cd Payload
+          zip -r "../ShinnCheat.ipa" "ShinnCheat.app"
+          cd ..
+
+          rm -rf Payload
+
+          echo "✅ IPA đã tạo:"
+          ls -lh ShinnCheat.ipa
+
+      # 6. Upload IPA lên GitHub Actions
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-iOS-IPA
+          path: ShinnCheat.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      # 7. Upload file app để debug nếu cần
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-Build
+          path: |
+            build/
+          retention-days: 7
