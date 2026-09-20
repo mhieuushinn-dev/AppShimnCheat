@@ -1,0 +1,36 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		000000000000000000000001 /* ShinnCheatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000101 /* ShinnCheatApp.swift */; };
+		000000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* Models.swift */; };
+		000000000000000000000003 /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000103 /* Glass.swift */; };
+		000000000000000000000004 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000104 /* ContentView.swift */; };
+		000000000000000000000005 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000105 /* HomeView.swift */; };
+		000000000000000000000006 /* SecondaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000106 /* SecondaryViews.swift */; };
+		000000000000000000000101 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShinnCheatApp.swift; sourceTree = "<group>"; };
+		000000000000000000000102 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		000000000000000000000103 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
+		000000000000000000000104 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		000000000000000000000105 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		000000000000000000000106 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryViews.swift; sourceTree = "<group>"; };
+		000000000000000000000201 = {isa = PBXGroup; children = (000000000000000000000101,000000000000000000000102,000000000000000000000103,000000000000000000000104,000000000000000000000105,000000000000000000000106); path = ShinnCheat; sourceTree = "<group>"; };
+		000000000000000000000202 = {isa = PBXGroup; children = (000000000000000000000201); sourceTree = "<group>"; };
+		000000000000000000000301 = {isa = PBXNativeTarget; buildConfigurationList = 000000000000000000000401; buildPhases = (000000000000000000000501,000000000000000000000502,000000000000000000000503); name = ShinnCheat; productName = ShinnCheat; productReference = 000000000000000000000601; productType = "com.apple.product-type.application"; };
+		000000000000000000000302 = {isa = PBXProject; buildConfigurationList = 000000000000000000000402; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; mainGroup = 000000000000000000000202; productRefGroup = 000000000000000000000202; projectDirPath = ""; projectRoot = ""; targets = (000000000000000000000301); };
+		000000000000000000000401 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000701,000000000000000000000702); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		000000000000000000000402 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000703,000000000000000000000704); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		000000000000000000000501 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (000000000000000000000001,000000000000000000000002,000000000000000000000003,000000000000000000000004,000000000000000000000005,000000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		000000000000000000000502 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		000000000000000000000503 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		000000000000000000000601 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShinnCheat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000701 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.shinn.shinncheat"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; TARGETED_DEVICE_FAMILY = "1,2"; INFOPLIST_KEY_CFBundleDisplayName = "Shinn Cheat"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; }; name = Debug; };
+		000000000000000000000702 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.shinn.shinncheat"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; TARGETED_DEVICE_FAMILY = "1,2"; INFOPLIST_KEY_CFBundleDisplayName = "Shinn Cheat"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; }; name = Release; };
+		000000000000000000000703 = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
+		000000000000000000000704 = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; }; name = Release; };
+	};
+	rootObject = 000000000000000000000302;
+}
