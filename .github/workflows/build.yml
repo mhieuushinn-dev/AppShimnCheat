@@ -2,6 +2,7 @@ name: Build Shinn Cheat
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
@@ -15,36 +16,134 @@ jobs:
     runs-on: macos-latest
 
     steps:
+
+      # =========================================================
+      # 1. CHECKOUT
+      # =========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # =========================================================
+      # 2. CHECK XCODE
+      # =========================================================
       - name: Check Xcode
         run: |
+          set -e
+
+          echo "======================================"
+          echo "XCODE"
+          echo "======================================"
+
           xcode-select -p
           xcodebuild -version
 
+          echo ""
+          echo "Available iOS SDK:"
+          xcodebuild -showsdks
+
+
+      # =========================================================
+      # 3. INSTALL XCODEGEN
+      # =========================================================
       - name: Install XcodeGen
         run: |
-          brew install xcodegen
+          set -e
 
-      - name: Prepare source
+          if command -v xcodegen >/dev/null 2>&1; then
+            echo "XcodeGen already installed"
+          else
+            brew install xcodegen
+          fi
+
+          xcodegen version
+
+
+      # =========================================================
+      # 4. CHECK REPOSITORY
+      # =========================================================
+      - name: Check repository files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "REPOSITORY"
+          echo "======================================"
+
+          pwd
+
+          echo ""
+          echo "Files:"
+          find . -maxdepth 3 -type f | sort
+
+
+      # =========================================================
+      # 5. CREATE SOURCE DIRECTORY
+      # =========================================================
+      - name: Prepare ShinnCheat source
         run: |
           set -e
 
           mkdir -p ShinnCheat
 
-          test -f ContentView.swift && cp ContentView.swift ShinnCheat/
-          test -f HomeView.swift && cp HomeView.swift ShinnCheat/
-          test -f Glass.swift && cp Glass.swift ShinnCheat/
-          test -f Models.swift && cp Models.swift ShinnCheat/
-          test -f SecondaryViews.swift && cp SecondaryViews.swift/
+          echo "Preparing source files..."
 
-          if [ -f ShinnCheatApp.swift ]; then
-            cp ShinnCheatApp.swift ShinnCheat/
+
+          # ContentView
+          if [ -f "ContentView.swift" ]; then
+            cp "ContentView.swift" "ShinnCheat/ContentView.swift"
+          elif [ ! -f "ShinnCheat/ContentView.swift" ]; then
+            echo "ERROR: ContentView.swift not found"
+            exit 1
           fi
 
-          if [ ! -f ShinnCheat/ShinnCheatApp.swift ]; then
-            cat > ShinnCheat/ShinnCheatApp.swift <<'EOF'
+
+          # HomeView
+          if [ -f "HomeView.swift" ]; then
+            cp "HomeView.swift" "ShinnCheat/HomeView.swift"
+          elif [ ! -f "ShinnCheat/HomeView.swift" ]; then
+            echo "ERROR: HomeView.swift not found"
+            exit 1
+          fi
+
+
+          # Glass
+          if [ -f "Glass.swift" ]; then
+            cp "Glass.swift" "ShinnCheat/Glass.swift"
+          elif [ ! -f "ShinnCheat/Glass.swift" ]; then
+            echo "ERROR: Glass.swift not found"
+            exit 1
+          fi
+
+
+          # Models
+          if [ -f "Models.swift" ]; then
+            cp "Models.swift" "ShinnCheat/Models.swift"
+          elif [ ! -f "ShinnCheat/Models.swift" ]; then
+            echo "ERROR: Models.swift not found"
+            exit 1
+          fi
+
+
+          # SecondaryViews
+          if [ -f "SecondaryViews.swift" ]; then
+            cp "SecondaryViews.swift" "ShinnCheat/SecondaryViews.swift"
+          elif [ ! -f "ShinnCheat/SecondaryViews.swift" ]; then
+            echo "ERROR: SecondaryViews.swift not found"
+            exit 1
+          fi
+
+
+          # App entry
+          if [ -f "ShinnCheatApp.swift" ]; then
+            cp "ShinnCheatApp.swift" "ShinnCheat/ShinnCheatApp.swift"
+          fi
+
+
+          # Nếu chưa có App entry thì tự tạo
+          if [ ! -f "ShinnCheat/ShinnCheatApp.swift" ]; then
+
+            cat > "ShinnCheat/ShinnCheatApp.swift" <<'EOF'
 import SwiftUI
 
 @main
@@ -56,20 +155,118 @@ struct ShinnCheatApp: App {
     }
 }
 EOF
+
           fi
 
-          echo "=== SOURCE FILES ==="
-          find ShinnCheat -type f | sort
 
+      # =========================================================
+      # 6. CREATE INFOPLIST
+      # =========================================================
+      - name: Create Info.plist
+        run: |
+          set -e
+
+          cat > "ShinnCheat/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+
+<plist version="1.0">
+<dict>
+
+    <key>CFBundleDisplayName</key>
+    <string>Shinn Cheat</string>
+
+    <key>CFBundleName</key>
+    <string>Shinn Cheat</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.shinn.shinncheat</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <key>UILaunchScreen</key>
+    <dict/>
+
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+</dict>
+</plist>
+EOF
+
+          echo "Info.plist created"
+
+          plutil -lint "ShinnCheat/Info.plist"
+
+
+      # =========================================================
+      # 7. VALIDATE SOURCE
+      # =========================================================
+      - name: Validate source files
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "SOURCE FILES"
+          echo "======================================"
+
+          find ShinnCheat -maxdepth 1 -type f -print | sort
+
+          echo ""
+          echo "Required files:"
+
+          test -f "ShinnCheat/ShinnCheatApp.swift"
+          echo "OK ShinnCheatApp.swift"
+
+          test -f "ShinnCheat/ContentView.swift"
+          echo "OK ContentView.swift"
+
+          test -f "ShinnCheat/HomeView.swift"
+          echo "OK HomeView.swift"
+
+          test -f "ShinnCheat/Glass.swift"
+          echo "OK Glass.swift"
+
+          test -f "ShinnCheat/Models.swift"
+          echo "OK Models.swift"
+
+          test -f "ShinnCheat/SecondaryViews.swift"
+          echo "OK SecondaryViews.swift"
+
+          test -f "ShinnCheat/Info.plist"
+          echo "OK Info.plist"
+
+
+      # =========================================================
+      # 8. CREATE XCODEGEN PROJECT
+      # =========================================================
       - name: Create project.yml
         run: |
+          set -e
+
           cat > project.yml <<'EOF'
 name: ShinnCheat
 
 options:
   bundleIdPrefix: com.shinn
+
   deploymentTarget:
     iOS: "17.0"
+
+  createIntermediateGroups: true
 
 settings:
   base:
@@ -77,37 +274,85 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
 
 targets:
+
   ShinnCheat:
+
     type: application
+
     platform: iOS
 
     sources:
       - path: ShinnCheat
+        excludes:
+          - Info.plist
 
     settings:
+
       PRODUCT_BUNDLE_IDENTIFIER: com.shinn.shinncheat
+
       PRODUCT_NAME: Shinn Cheat
-      INFOPLIST_KEY_CFBundleDisplayName: Shinn Cheat
-      INFOPLIST_KEY_LSRequiresIPhoneOS: true
-      GENERATE_INFOPLIST_FILE: true
+
+      SWIFT_VERSION: "5.0"
+
+      INFOPLIST_FILE: ShinnCheat/Info.plist
+
+      TARGETED_DEVICE_FAMILY: "1,2"
+
       CODE_SIGNING_ALLOWED: NO
+
       CODE_SIGNING_REQUIRED: NO
+
       CODE_SIGN_IDENTITY: ""
+
 EOF
 
+          echo "project.yml created"
+
+          cat project.yml
+
+
+      # =========================================================
+      # 9. GENERATE XCODE PROJECT
+      # =========================================================
       - name: Generate Xcode project
         run: |
+          set -e
+
           xcodegen generate
 
-          test -d ShinnCheat.xcodeproj
+          echo ""
+          echo "Generated project:"
+          ls -la
 
-      - name: Build iOS app
+          test -d "ShinnCheat.xcodeproj"
+
+          echo "OK ShinnCheat.xcodeproj"
+
+
+      # =========================================================
+      # 10. CHECK XCODE PROJECT
+      # =========================================================
+      - name: Check Xcode project
         run: |
           set -e
 
           xcodebuild \
-            -project ShinnCheat.xcodeproj \
-            -scheme ShinnCheat \
+            -project "ShinnCheat.xcodeproj" \
+            -list
+
+
+      # =========================================================
+      # 11. BUILD
+      # =========================================================
+      - name: Build Shinn Cheat
+        run: |
+          set -e
+
+          rm -rf build
+
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -scheme "ShinnCheat" \
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
@@ -117,62 +362,132 @@ EOF
             CODE_SIGN_IDENTITY="" \
             clean build
 
-      - name: Find app
+
+      # =========================================================
+      # 12. FIND APP
+      # =========================================================
+      - name: Find built app
         run: |
           set -e
 
+          echo "======================================"
+          echo "SEARCHING APP"
+          echo "======================================"
+
           find build \
             -type d \
-            -name "ShinnCheat.app" \
+            -name "*.app" \
             -print
 
+          APP_PATH="build/Build/Products/Release-iphoneos/ShinnCheat.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo ""
+            echo "ERROR: ShinnCheat.app not found"
+
+            find build \
+              -type d \
+              -name "*.app" \
+              -print
+
+            exit 1
+          fi
+
+          echo ""
+          echo "OK:"
+          echo "$APP_PATH"
+
+
+      # =========================================================
+      # 13. CREATE PAYLOAD
+      # =========================================================
       - name: Create IPA
         run: |
           set -e
 
           APP_PATH="build/Build/Products/Release-iphoneos/ShinnCheat.app"
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "❌ Không tìm thấy ShinnCheat.app"
-            find build -type d -name "*.app" -print
-            exit 1
-          fi
-
           rm -rf Payload
           rm -f ShinnCheat.ipa
 
-          mkdir Payload
+          mkdir -p Payload
 
-          cp -R "$APP_PATH" Payload/ShinnCheat.app
+          cp -R \
+            "$APP_PATH" \
+            "Payload/ShinnCheat.app"
+
+          echo "Payload prepared"
+
+
+      # =========================================================
+      # 14. ZIP IPA
+      # =========================================================
+      - name: Package IPA
+        run: |
+          set -e
 
           cd Payload
-          zip -r ../ShinnCheat.ipa ShinnCheat.app
+
+          zip -r \
+            "../ShinnCheat.ipa" \
+            "ShinnCheat.app"
+
           cd ..
 
           rm -rf Payload
 
-          echo "================================"
-          echo "✅ IPA CREATED"
-          echo "================================"
+          echo ""
+          echo "======================================"
+          echo "IPA CREATED"
+          echo "======================================"
 
           ls -lh ShinnCheat.ipa
 
+
+      # =========================================================
+      # 15. VERIFY IPA
+      # =========================================================
       - name: Verify IPA
         run: |
           set -e
 
-          if [ ! -f ShinnCheat.ipa ]; then
-            echo "❌ IPA không tồn tại"
-            exit 1
-          fi
+          test -f "ShinnCheat.ipa"
 
-          echo "✅ IPA OK"
-          ls -lh ShinnCheat.ipa
+          echo "IPA size:"
+          ls -lh "ShinnCheat.ipa"
 
-      - name: Upload IPA
+          echo ""
+          echo "IPA type:"
+          file "ShinnCheat.ipa"
+
+          echo ""
+          echo "IPA contents:"
+          unzip -l "ShinnCheat.ipa" | head -30
+
+
+      # =========================================================
+      # 16. UPLOAD IPA
+      # =========================================================
+      - name: Upload Shinn Cheat IPA
         uses: actions/upload-artifact@v4
         with:
           name: ShinnCheat-IPA
           path: ShinnCheat.ipa
           if-no-files-found: error
           retention-days: 30
+
+
+      # =========================================================
+      # 17. UPLOAD BUILD LOGS IF FAILED
+      # =========================================================
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-Build-Logs
+          path: |
+            build/
+            project.yml
+            ShinnCheat/
+          if-no-files-found: ignore
+          retention-days: 7
