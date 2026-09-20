@@ -25,7 +25,7 @@ enum DownloadState {
     case failed(DLError)
 }
 
-enum LoadState {
+enum LoadState: Equatable {
     case idle
     case loading
     case loaded
@@ -482,12 +482,33 @@ final class RepoStore: ObservableObject {
 
             patchStates[pkg.id] = .applied
 
+            openTargetIfNeeded(pkg)
+
         } catch {
 
             patchStates[pkg.id] = .failed(
                 errorMessage(error)
             )
         }
+    }
+
+    /// Mở app đích (vd. Free Fire, Free Fire Max) theo openURL của package, nếu có.
+    private func openTargetIfNeeded(_ pkg: RepoPackage) {
+
+        guard
+            let raw = pkg.openURL?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty,
+            let url = URL(string: raw)
+        else {
+            return
+        }
+
+        guard UIApplication.shared.canOpenURL(url) else {
+            return
+        }
+
+        UIApplication.shared.open(url)
     }
 
     /// Khôi phục backup.
@@ -529,6 +550,8 @@ final class RepoStore: ObservableObject {
             )
 
             patchStates[pkg.id] = .restored
+
+            openTargetIfNeeded(pkg)
 
         } catch {
 
