@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
@@ -15,59 +16,155 @@ jobs:
     runs-on: macos-latest
 
     steps:
+
+      # =========================================
+      # 1. CHECKOUT
+      # =========================================
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Files
+
+      # =========================================
+      # 2. CHECK PROJECT STRUCTURE
+      # =========================================
+      - name: Verify Project
+        shell: bash
         run: |
-          echo "===== ROOT ====="
+          set -euo pipefail
+
+          echo "========================================"
+          echo "SHINN CHEAT PROJECT"
+          echo "========================================"
+
+          echo ""
+          echo "Current directory:"
           pwd
-          echo "===== FILES ====="
+
+          echo ""
+          echo "Project files:"
           find . -maxdepth 3 -type f | sort
 
-      - name: Prepare Source
+          echo ""
+          echo "Checking Xcode project..."
+
+          test -f "ShinnCheat.xcodeproj/project.pbxproj"
+          test -f "ShinnCheat.xcodeproj/xcshareddata/xcschemes/ShinnCheat.xcscheme"
+
+          echo "✅ Xcode project found"
+          echo "✅ ShinnCheat scheme found"
+
+
+      # =========================================
+      # 3. CHECK SOURCE FILES
+      # =========================================
+      - name: Verify Swift Sources
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          mkdir -p ShinnCheat
+          echo "========================================"
+          echo "SWIFT SOURCE FILES"
+          echo "========================================"
 
-          cp ContentView.swift ShinnCheat/ContentView.swift
-          cp Glass.swift ShinnCheat/Glass.swift
-          cp HomeView.swift ShinnCheat/HomeView.swift
-          cp Models.swift ShinnCheat/Models.swift
-          cp ShinnCheatApp.swift ShinnCheat/ShinnCheatApp.swift
-          cp SecondaryViews.swift ShinnCheat/SecondaryViews.swift
+          files=(
+            "ShinnCheat/ShinnCheatApp.swift"
+            "ShinnCheat/ContentView.swift"
+            "ShinnCheat/HomeView.swift"
+            "ShinnCheat/Glass.swift"
+            "ShinnCheat/Models.swift"
+            "ShinnCheat/SecondaryViews.swift"
+          )
 
-          echo "===== SOURCE READY ====="
-          find ShinnCheat -type f -maxdepth 1 | sort
+          for file in "${files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing: $file"
+              exit 1
+            fi
 
+            echo "✅ $file"
+          done
+
+
+      # =========================================
+      # 4. CHECK XCODE
+      # =========================================
       - name: Check Xcode
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "XCODE"
+          echo "========================================"
+
           xcode-select -p
           xcodebuild -version
-          xcodebuild -showsdks
 
-      - name: Check Project
+          echo ""
+          echo "Available iOS SDKs:"
+          xcodebuild -showsdks | grep -i iphone || true
+
+
+      # =========================================
+      # 5. VALIDATE SCHEME
+      # =========================================
+      - name: Validate Scheme
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          if [ ! -d "ShinnCheat.xcodeproj" ]; then
-            echo "ERROR: ShinnCheat.xcodeproj not found"
-            echo "Searching for Xcode projects..."
-            find . -name "*.xcodeproj" -print
-            exit 1
-          fi
+          echo "========================================"
+          echo "VALIDATE SCHEME"
+          echo "========================================"
 
-          echo "OK: ShinnCheat.xcodeproj found"
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -scheme "ShinnCheat" \
+            -configuration Release \
+            -sdk iphoneos \
+            -showBuildSettings \
+            > build-settings.txt
 
-      - name: Clean
+          echo "✅ Scheme is valid"
+
+          echo ""
+          echo "Important settings:"
+
+          grep \
+            -E \
+            "PRODUCT_BUNDLE_IDENTIFIER|GENERATE_INFOPLIST_FILE|SWIFT_VERSION|IPHONEOS_DEPLOYMENT_TARGET" \
+            build-settings.txt || true
+
+
+      # =========================================
+      # 6. CLEAN
+      # =========================================
+      - name: Clean Build
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "CLEAN"
+          echo "========================================"
+
           rm -rf build
           rm -rf DerivedData
 
-      - name: Build
+          echo "✅ Clean complete"
+
+
+      # =========================================
+      # 7. BUILD APP
+      # =========================================
+      - name: Build Shinn Cheat
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
+          echo "========================================"
+          echo "BUILD SHINN CHEAT"
+          echo "========================================"
 
           xcodebuild \
             -project "ShinnCheat.xcodeproj" \
@@ -80,45 +177,95 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            GENERATE_INFOPLIST_FILE=YES \
             clean build
 
+          echo ""
+          echo "✅ Xcode build completed"
+
+
+      # =========================================
+      # 8. VERIFY APP
+      # =========================================
       - name: Verify App
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
+          echo "========================================"
+          echo "VERIFY APP"
+          echo "========================================"
 
           APP_PATH="$PWD/build/Release-iphoneos/ShinnCheat.app"
 
           if [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: ShinnCheat.app not found"
-            find "$PWD/build" -maxdepth 5 -print || true
+            echo "❌ ShinnCheat.app not found"
+
+            echo ""
+            echo "Searching build directory..."
+
+            find "$PWD/build" -maxdepth 6 -print || true
+
             exit 1
           fi
 
-          echo "OK: ShinnCheat.app found"
+          echo "✅ ShinnCheat.app found"
 
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "❌ Info.plist not found"
+            exit 1
+          fi
+
+          echo "✅ Info.plist found"
+
+          echo ""
+          echo "App contents:"
           ls -la "$APP_PATH"
 
+          echo ""
+          echo "Bundle ID:"
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIdentifier" \
+            "$APP_PATH/Info.plist"
+
+
+      # =========================================
+      # 9. CREATE IPA
+      # =========================================
       - name: Create IPA
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
+          echo "========================================"
+          echo "CREATE IPA"
+          echo "========================================"
 
           rm -rf Payload
           rm -f ShinnCheat.ipa
 
-          mkdir Payload
+          mkdir -p Payload
 
           cp -R \
             "build/Release-iphoneos/ShinnCheat.app" \
             "Payload/ShinnCheat.app"
 
-          zip -r ShinnCheat.ipa Payload
+          /usr/bin/zip \
+            -qry \
+            "ShinnCheat.ipa" \
+            "Payload/ShinnCheat.app"
 
           rm -rf Payload
 
-          echo "===== IPA ====="
+          echo ""
+          echo "✅ IPA CREATED"
+
           ls -lh ShinnCheat.ipa
 
+
+      # =========================================
+      # 10. UPLOAD IPA
+      # =========================================
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
@@ -126,3 +273,19 @@ jobs:
           path: ShinnCheat.ipa
           if-no-files-found: error
           retention-days: 30
+
+
+      # =========================================
+      # 11. UPLOAD LOGS IF FAILED
+      # =========================================
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinnCheat-Build-Logs
+          path: |
+            DerivedData/
+            build/
+            build-settings.txt
+          if-no-files-found: ignore
+          retention-days: 7
