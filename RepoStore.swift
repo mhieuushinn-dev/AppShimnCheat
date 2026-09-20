@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import UIKit
+import ZIPFoundation
 
 enum DLError: Error {
     case badURL
@@ -595,26 +596,12 @@ final class RepoStore: ObservableObject {
             )
         }
 
-        let process = Process()
-        process.executableURL = URL(
-            fileURLWithPath: "/usr/bin/unzip"
-        )
-
-        process.arguments = [
-            "-q",
-            zipURL.path,
-            "-d",
-            temporaryDirectory.path
-        ]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
+        do {
+            try fileManager.unzipItem(
+                at: zipURL,
+                to: temporaryDirectory
+            )
+        } catch {
             throw PatchError.applyFailed
         }
 
