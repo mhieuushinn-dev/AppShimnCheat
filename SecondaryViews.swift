@@ -65,57 +65,6 @@ struct SettingsView: View {
 
             Section {
 
-                HStack(spacing: 12) {
-
-                    Image(
-                        systemName: "lock.fill"
-                    )
-
-                    VStack(
-                        alignment: .leading,
-                        spacing: 2
-                    ) {
-
-                        Text(
-                            store.manifest?.name
-                            ?? AppInfo.defaultRepoName
-                        )
-                        .font(
-                            .system(
-                                size: 16,
-                                weight: .semibold
-                            )
-                        )
-
-                        Text(
-                            AppInfo.defaultRepoURL
-                                .absoluteString
-                        )
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    }
-
-                    Spacer()
-
-                    Text(
-                        settings.t(.defaultBadge)
-                    )
-                    .font(
-                        .system(
-                            size: 10,
-                            weight: .bold
-                        )
-                    )
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Color.primary.opacity(0.12),
-                        in: Capsule()
-                    )
-                }
-
                 Toggle(
                     isOn: $settings.autoRefresh
                 ) {
@@ -126,42 +75,6 @@ struct SettingsView: View {
                             "arrow.triangle.2.circlepath"
                     )
                 }
-
-                Button {
-
-                    Task {
-                        await store.refresh()
-                    }
-
-                } label: {
-
-                    HStack {
-
-                        Label(
-                            settings.t(.refreshRepo),
-                            systemImage:
-                                "arrow.clockwise"
-                        )
-
-                        Spacer()
-
-                        if store.loadState == .loading {
-                            ProgressView()
-                        }
-                    }
-                }
-
-            } header: {
-
-                Text(
-                    settings.t(.repoSection)
-                )
-
-            } footer: {
-
-                Text(
-                    settings.t(.repoLocked)
-                )
             }
             .listRowBackground(
                 Color.primary.opacity(0.07)
