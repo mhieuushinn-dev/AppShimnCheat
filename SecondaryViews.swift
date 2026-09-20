@@ -1,516 +1,272 @@
 import SwiftUI
-
-// MARK: - Packages View
-
-struct PackagesView: View {
-
-    @State private var searchText = ""
-
-    private let packageCategories = [
-        "Free Fire",
-        "Free Fire Max",
-        "MOD VIP"
-    ]
-
-    private var filteredCategories: [String] {
-        let query = searchText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if query.isEmpty {
-            return packageCategories
-        }
-
-        return packageCategories.filter {
-            $0.localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 16) {
-
-                    // Header
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Package Center")
-                            .font(.system(size: 30, weight: .bold))
-
-                        Text("Các package được cung cấp bởi Shinn Cheat")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-
-                    // Categories
-                    ForEach(filteredCategories, id: \.self) { category in
-                        PackageCategoryCard(
-                            title: category
-                        )
-                    }
-
-                    if filteredCategories.isEmpty {
-                        ContentUnavailableView(
-                            "Không tìm thấy",
-                            systemImage: "magnifyingglass",
-                            description: Text(
-                                "Không có package phù hợp với từ khóa."
-                            )
-                        )
-                        .padding(.top, 40)
-                    }
-                }
-                .padding(.vertical)
-            }
-            .navigationTitle("Packages")
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(
-                text: $searchText,
-                prompt: "Tìm package"
-            )
-        }
-    }
-}
-
-// MARK: - Package Category Card
-
-private struct PackageCategoryCard: View {
-
-    let title: String
-
-    private var icon: String {
-        switch title {
-        case "Free Fire":
-            return "flame.fill"
-
-        case "Free Fire Max":
-            return "sparkles"
-
-        case "MOD VIP":
-            return "crown.fill"
-
-        default:
-            return "shippingbox.fill"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 16) {
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-
-                Image(systemName: icon)
-                    .font(.system(size: 23, weight: .semibold))
-            }
-            .frame(width: 58, height: 58)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.system(size: 18, weight: .semibold))
-
-                Text("Xem các package")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.secondary)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(
-                    Color.primary.opacity(0.08),
-                    lineWidth: 1
-                )
-        )
-        .padding(.horizontal)
-    }
-}
+import UIKit
 
 // MARK: - Settings
 
 struct SettingsView: View {
-
-    @AppStorage("notificationsEnabled")
-    private var notificationsEnabled = true
-
-    @AppStorage("autoRefreshEnabled")
-    private var autoRefreshEnabled = true
+    @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var store: RepoStore
 
     var body: some View {
-        NavigationStack {
-            List {
-
-                Section("Ứng dụng") {
-
-                    Toggle(
-                        "Thông báo",
-                        isOn: $notificationsEnabled
-                    )
-
-                    Toggle(
-                        "Tự động cập nhật",
-                        isOn: $autoRefreshEnabled
-                    )
+        List {
+            Section(settings.t(.appearance)) {
+                Picker(selection: $settings.theme) {
+                    ForEach(AppTheme.allCases) { item in
+                        Text(settings.t(item.titleKey)).tag(item)
+                    }
+                } label: {
+                    Label(settings.t(.themeLabel), systemImage: "circle.lefthalf.filled")
                 }
 
-                Section("Giao diện") {
-
-                    HStack {
-                        Label(
-                            "Chủ đề",
-                            systemImage: "circle.lefthalf.filled"
-                        )
-
-                        Spacer()
-
-                        Text("Tự động")
-                            .foregroundStyle(.secondary)
+                Picker(selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { item in
+                        Text(item.title).tag(item)
                     }
-
-                    HStack {
-                        Label(
-                            "Phong cách",
-                            systemImage: "rectangle.on.rectangle"
-                        )
-
-                        Spacer()
-
-                        Text("Glass")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section("Thông tin") {
-
-                    HStack {
-                        Label(
-                            "Phiên bản",
-                            systemImage: "info.circle"
-                        )
-
-                        Spacer()
-
-                        Text("1.0.0")
-                            .foregroundStyle(.secondary)
-                    }
+                } label: {
+                    Label(settings.t(.languageLabel), systemImage: "globe")
                 }
             }
-            .navigationTitle("Cài Đặt")
+            .listRowBackground(Color.primary.opacity(0.07))
+
+            Section {
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.fill")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.manifest?.name ?? AppInfo.defaultRepoName)
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(AppInfo.defaultRepoURL.absoluteString)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Text(settings.t(.defaultBadge))
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.12), in: Capsule())
+                }
+
+                Toggle(isOn: $settings.autoRefresh) {
+                    Label(settings.t(.autoUpdate), systemImage: "arrow.triangle.2.circlepath")
+                }
+
+                Button {
+                    Task { await store.refresh() }
+                } label: {
+                    HStack {
+                        Label(settings.t(.refreshRepo), systemImage: "arrow.clockwise")
+                        Spacer()
+                        if store.loadState == .loading {
+                            ProgressView()
+                        }
+                    }
+                }
+            } header: {
+                Text(settings.t(.repoSection))
+            } footer: {
+                Text(settings.t(.repoLocked))
+            }
+            .listRowBackground(Color.primary.opacity(0.07))
+
+            Section(settings.t(.infoTitle)) {
+                HStack {
+                    Label(settings.t(.versionLabel), systemImage: "info.circle")
+                    Spacer()
+                    Text(AppInfo.version).foregroundStyle(.secondary)
+                }
+            }
+            .listRowBackground(Color.primary.opacity(0.07))
         }
+        .scrollContentBackground(.hidden)
+        .background(BackgroundView())
+        .navigationTitle(settings.t(.settingsTitle))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 // MARK: - About
 
 struct AboutView: View {
+    @EnvironmentObject var settings: AppSettings
+    @State private var copied = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
+        ScrollView {
+            VStack(spacing: 22) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 46, weight: .semibold))
+                    .frame(width: 108, height: 108)
+                    .background(Color.primary.opacity(0.08), in: Circle())
 
-                    // Logo
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
+                VStack(spacing: 6) {
+                    Text("SHINN CHEAT")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                    Text("Play Smart • Stay Ahead")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Pill(text: settings.t(.madeBy))
+                        .padding(.top, 6)
+                }
 
-                        Image(systemName: "crown.fill")
-                            .font(
-                                .system(
-                                    size: 48,
-                                    weight: .semibold
-                                )
-                            )
-                    }
-                    .frame(width: 110, height: 110)
-
-                    // Name
-                    VStack(spacing: 6) {
-
-                        Text("SHINN CHEAT")
-                            .font(
-                                .system(
-                                    size: 28,
-                                    weight: .bold
-                                )
-                            )
-
-                        Text("Play Smart • Stay Ahead")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Description
-                    Text(
-                        """
-                        Shinn Cheat là ứng dụng quản lý và \
-                        phân phối các package được cấu hình \
-                        thông qua repository của Shinn.
-                        """
-                    )
+                Text(settings.t(.aboutDesc))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 12)
 
-                    // Features
-                    VStack(spacing: 12) {
+                VStack(spacing: 12) {
+                    Text(settings.t(.contactTitle))
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                        InfoCard(
-                            icon: "shippingbox.fill",
-                            title: "Package Center",
-                            subtitle: "Quản lý các package"
-                        )
+                    Link(destination: AppInfo.telegramURL) {
+                        ContactRow(icon: "paperplane.fill", title: "Telegram", value: AppInfo.telegramHandle, trailing: "arrow.up.right")
+                    }
+                    .buttonStyle(.plain)
 
-                        InfoCard(
-                            icon: "arrow.triangle.2.circlepath",
-                            title: "Remote JSON",
-                            subtitle: "Cập nhật dữ liệu từ repository"
-                        )
-
-                        InfoCard(
-                            icon: "checkmark.shield.fill",
-                            title: "SHA256",
-                            subtitle: "Kiểm tra tính toàn vẹn của file"
-                        )
-
-                        InfoCard(
-                            icon: "icloud.and.arrow.down.fill",
-                            title: "Download",
-                            subtitle: "Tải package từ nguồn được cấu hình"
+                    Button {
+                        UIPasteboard.general.string = AppInfo.bankAccount
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+                    } label: {
+                        ContactRow(
+                            icon: "heart.fill",
+                            title: settings.t(.donateTitle) + " • " + AppInfo.bankName,
+                            value: AppInfo.bankAccount,
+                            trailing: copied ? "checkmark" : "doc.on.doc"
                         )
                     }
-                    .padding(.horizontal)
+                    .buttonStyle(.plain)
 
-                    Text("© 2026 Shinn Cheat")
+                    if copied {
+                        Text(settings.t(.copied))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                VStack(spacing: 12) {
+                    InfoCard(icon: "shippingbox.fill", title: "Package Center", subtitle: settings.t(.featPackages))
+                    InfoCard(icon: "arrow.triangle.2.circlepath", title: "Remote JSON", subtitle: settings.t(.featRemote))
+                    InfoCard(icon: "checkmark.shield.fill", title: "SHA256", subtitle: settings.t(.featSHA))
+                    InfoCard(icon: "icloud.and.arrow.down.fill", title: "Download", subtitle: settings.t(.featDownload))
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(settings.t(.termsTitle), systemImage: "doc.text.fill")
+                        .font(.headline)
+                    Text(settings.t(.termsBody))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .padding(.top, 8)
                 }
-                .padding(.vertical, 30)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .shinnGlass(radius: 20)
+
+                Text("© 2026 Shinn Cheat • v" + AppInfo.version)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .navigationTitle("Giới Thiệu")
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
         }
+        .background(BackgroundView())
+        .navigationTitle(settings.t(.aboutTitle))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-// MARK: - Info Card
+struct ContactRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let trailing: String
 
-private struct InfoCard: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            IconBox(systemName: icon, size: 44)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Text(value).font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: trailing)
+                .font(.footnote.bold())
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .contentShape(Rectangle())
+        .shinnGlass(radius: 18)
+    }
+}
 
+struct InfoCard: View {
     let icon: String
     let title: String
     let subtitle: String
 
     var body: some View {
         HStack(spacing: 14) {
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 13)
-                    .fill(.ultraThinMaterial)
-
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-            }
-            .frame(width: 46, height: 46)
-
+            IconBox(systemName: icon, size: 46)
             VStack(alignment: .leading, spacing: 3) {
-
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(title).font(.system(size: 16, weight: .semibold))
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
-
             Spacer()
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(
-                    Color.primary.opacity(0.07),
-                    lineWidth: 1
-                )
-        )
+        .shinnGlass(radius: 20)
     }
 }
 
 // MARK: - Support
 
 struct SupportView: View {
+    @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        NavigationStack {
-            List {
-
-                Section("Hỗ trợ") {
-
-                    SupportRow(
-                        icon: "paperplane.fill",
-                        title: "Telegram",
-                        subtitle: "Liên hệ nhóm hỗ trợ"
-                    )
-
-                    SupportRow(
-                        icon: "questionmark.circle.fill",
-                        title: "Trợ giúp",
-                        subtitle: "Xem hướng dẫn sử dụng"
-                    )
-
-                    SupportRow(
-                        icon: "exclamationmark.triangle.fill",
-                        title: "Báo lỗi",
-                        subtitle: "Thông báo lỗi hoặc sự cố"
-                    )
+        List {
+            Section(settings.t(.supportTitle)) {
+                Link(destination: AppInfo.telegramURL) {
+                    SupportRow(icon: "paperplane.fill", title: "Telegram", subtitle: settings.t(.telegramSub))
                 }
-
-                Section("Lưu ý") {
-
-                    Text(
-                        """
-                        Không chia sẻ thông tin quản trị \
-                        cho người khác.
-                        """
-                    )
-                    .foregroundStyle(.secondary)
+                Link(destination: AppInfo.telegramURL) {
+                    SupportRow(icon: "exclamationmark.triangle.fill", title: settings.t(.reportTitle), subtitle: settings.t(.reportSub))
                 }
             }
-            .navigationTitle("Support")
+            .listRowBackground(Color.primary.opacity(0.07))
+
+            Section(settings.t(.noteTitle)) {
+                Text(settings.t(.noteBody))
+                    .foregroundStyle(.secondary)
+            }
+            .listRowBackground(Color.primary.opacity(0.07))
         }
+        .scrollContentBackground(.hidden)
+        .background(BackgroundView())
+        .navigationTitle(settings.t(.supportTitle))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-// MARK: - Support Row
-
-private struct SupportRow: View {
-
+struct SupportRow: View {
     let icon: String
     let title: String
     let subtitle: String
 
     var body: some View {
         HStack(spacing: 14) {
-
             Image(systemName: icon)
                 .font(.system(size: 18))
                 .frame(width: 30)
-
             VStack(alignment: .leading, spacing: 3) {
-
-                Text(title)
-                    .font(.system(size: 16, weight: .medium))
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(title).font(.system(size: 16, weight: .medium))
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
-
             Spacer()
         }
+        .foregroundStyle(.primary)
         .padding(.vertical, 5)
     }
-}
-
-// MARK: - Role View
-
-struct RoleView: View {
-
-    var body: some View {
-        NavigationStack {
-            List {
-
-                RoleRow(
-                    icon: "person.fill",
-                    title: "Member",
-                    description:
-                        "Người dùng thông thường."
-                )
-
-                RoleRow(
-                    icon: "headphones",
-                    title: "Support",
-                    description:
-                        "Hỗ trợ người dùng và tiếp nhận báo lỗi."
-                )
-
-                RoleRow(
-                    icon: "person.badge.key.fill",
-                    title: "Admin",
-                    description:
-                        "Quản lý nội dung repository theo quyền được cấp."
-                )
-
-                RoleRow(
-                    icon: "crown.fill",
-                    title: "Owner",
-                    description:
-                        "Quản lý toàn bộ hệ thống repository."
-                )
-            }
-            .navigationTitle("Vai Trò")
-        }
-    }
-}
-
-// MARK: - Role Row
-
-private struct RoleRow: View {
-
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 14) {
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-            }
-            .frame(width: 44, height: 44)
-
-            VStack(alignment: .leading, spacing: 4) {
-
-                Text(title)
-                    .font(
-                        .system(
-                            size: 16,
-                            weight: .semibold
-                        )
-                    )
-
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 5)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    PackagesView()
 }
