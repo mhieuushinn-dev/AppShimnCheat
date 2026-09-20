@@ -1,26 +1,20 @@
 import SwiftUI
 
 struct HomeView: View {
-    @Binding var route: Route?
-
-    private let packages = [
-        PackageItem(id: "ff", name: "Free Fire", subtitle: "Gói miễn phí", count: 2, icon: "gamecontroller.fill"),
-        PackageItem(id: "ffmax", name: "Free Fire Max", subtitle: "Gói miễn phí", count: 2, icon: "sparkles"),
-        PackageItem(id: "vip", name: "MOD VIP", subtitle: "Kho package", count: 9, icon: "cube.fill")
-    ]
+    @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var store: RepoStore
+    let open: (Route) -> Void
 
     var body: some View {
         ZStack {
             BackgroundView()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
+                LazyVStack(spacing: 14) {
                     header
                     hero
                     sectionTitle
-                    ForEach(packages) { package in
-                        PackageCard(item: package) { route = .packages }
-                    }
+                    categoriesSection
                     quickActions
                     credit
                 }
@@ -28,6 +22,7 @@ struct HomeView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 28)
             }
+            .refreshable { await store.refresh() }
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -36,7 +31,6 @@ struct HomeView: View {
         HStack(spacing: 12) {
             Image(systemName: "crown.fill")
                 .font(.system(size: 28))
-                .foregroundStyle(.white)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("SHINN CHEAT")
@@ -45,18 +39,19 @@ struct HomeView: View {
                 Text("GAMING CENTER")
                     .font(.system(size: 9, weight: .medium))
                     .tracking(4)
-                    .opacity(0.7)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            Button(action: { route = .support }) {
+            Button(action: { open(.support) }) {
                 Image(systemName: "paperplane.fill")
                     .font(.title3)
                     .frame(width: 48, height: 48)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.22)))
+                    .background(Color.primary.opacity(0.08), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 1))
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -66,30 +61,25 @@ struct HomeView: View {
                 Label("APP", systemImage: "crown.fill")
                     .font(.system(size: 14, weight: .black, design: .rounded))
                 Spacer()
-                Text("FREE")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(.white.opacity(0.12), in: Capsule())
+                Pill(text: "FREE")
             }
 
             Text("SHINN CHEAT")
                 .font(.system(size: 37, weight: .black, design: .rounded))
                 .tracking(-1)
 
-            Text("LÀ APP VÀ REPO HOÀN TOÀN FREE")
+            Text(settings.t(.heroFree))
                 .font(.system(size: 14, weight: .bold))
-                .opacity(0.9)
 
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                Text("Không bán key • Không khóa thiết bị")
+                Text(settings.t(.heroNote))
                     .font(.system(size: 13, weight: .semibold))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
+            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,24 +88,61 @@ struct HomeView: View {
 
     private var sectionTitle: some View {
         HStack {
-            Label("DANH MỤC GÓI", systemImage: "cube.fill")
-                .font(.system(size: 20, weight: .black, design: .rounded))
+            Label(settings.t(.categoriesTitle), systemImage: "square.grid.2x2.fill")
+                .font(.system(size: 18, weight: .black, design: .rounded))
             Spacer()
-            Text("FREE 100%")
-                .font(.caption.bold())
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.white.opacity(0.12), in: Capsule())
+            Pill(text: "FREE 100%")
         }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private var categoriesSection: some View {
+        if store.packages.isEmpty {
+            stateCard
+        } else {
+            CategoryCard(icon: "square.grid.2x2.fill", title: settings.t(.allPackages), count: store.packages.count) {
+                open(.packages(nil))
+            }
+            ForEach(store.categories) { c in
+                CategoryCard(icon: categoryIcon(c.name), title: c.name, count: c.count) {
+                    open(.packages(c.name))
+                }
+            }
+        }
+    }
+
+    private var stateCard: some View {
+        VStack(spacing: 12) {
+            if store.loadState == .failed {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.title)
+                Text(settings.t(.loadFailed))
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                Button(settings.t(.retry)) {
+                    Task { await store.refresh() }
+                }
+                .buttonStyle(.bordered)
+            } else {
+                ProgressView()
+                Text(settings.t(.loadingText))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .shinnGlass()
     }
 
     private var quickActions: some View {
         HStack(spacing: 12) {
-            QuickAction(title: "Cài Đặt", subtitle: "Tùy chỉnh app", icon: "gearshape.fill") {
-                route = .settings
+            QuickAction(title: settings.t(.settingsTitle), subtitle: settings.t(.settingsSub), icon: "gearshape.fill") {
+                open(.settings)
             }
-            QuickAction(title: "Giới Thiệu", subtitle: "Thông tin app", icon: "info.circle.fill") {
-                route = .about
+            QuickAction(title: settings.t(.aboutTitle), subtitle: settings.t(.aboutSub), icon: "info.circle.fill") {
+                open(.about)
             }
         }
     }
@@ -128,7 +155,7 @@ struct HomeView: View {
                 Text("SHINN CHEAT").font(.headline.bold())
                 Text("FREE FIRE • FREE FIRE MAX")
                     .font(.caption2)
-                    .opacity(0.65)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Text("Play Smart\nStay Ahead")
@@ -141,39 +168,36 @@ struct HomeView: View {
     }
 }
 
-struct PackageCard: View {
-    let item: PackageItem
+struct CategoryCard: View {
+    @EnvironmentObject var settings: AppSettings
+    let icon: String
+    let title: String
+    let count: Int
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 28))
-                    .frame(width: 76, height: 76)
-                    .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.18)))
+            HStack(spacing: 14) {
+                IconBox(systemName: icon, size: 56)
 
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(item.name)
-                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                    HStack(spacing: 6) {
-                        Image(systemName: "cube.fill")
-                        Text("\(item.count) gói")
-                    }
-                    .font(.subheadline)
-                    .opacity(0.7)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    Text(settings.countText(count))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Image(systemName: "chevron.right")
-                    .font(.title3.bold())
-                    .frame(width: 48, height: 48)
-                    .background(.white.opacity(0.11), in: Circle())
+                    .font(.footnote.bold())
+                    .frame(width: 34, height: 34)
+                    .background(Color.primary.opacity(0.08), in: Circle())
             }
-            .foregroundStyle(.white)
-            .padding(14)
+            .padding(12)
+            .contentShape(Rectangle())
             .shinnGlass()
         }
         .buttonStyle(.plain)
@@ -191,33 +215,13 @@ struct QuickAction: View {
             VStack(alignment: .leading, spacing: 12) {
                 Image(systemName: icon).font(.title2)
                 Text(title).font(.headline.bold())
-                Text(subtitle).font(.caption).opacity(0.65)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
-            .foregroundStyle(.white)
+            .contentShape(Rectangle())
             .shinnGlass()
         }
         .buttonStyle(.plain)
-    }
-}
-
-struct BackgroundView: View {
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            RadialGradient(
-                colors: [.white.opacity(0.10), .clear],
-                center: .topTrailing,
-                startRadius: 20,
-                endRadius: 500
-            ).ignoresSafeArea()
-            RadialGradient(
-                colors: [.white.opacity(0.06), .clear],
-                center: .bottomLeading,
-                startRadius: 20,
-                endRadius: 450
-            ).ignoresSafeArea()
-        }
     }
 }
