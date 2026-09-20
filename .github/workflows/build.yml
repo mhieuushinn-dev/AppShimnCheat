@@ -1,28 +1,26 @@
-name: Build Shinn Cheat
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    name: Build iOS IPA
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check Xcode
+      - name: Prepare Xcode Project
         run: |
-          xcode-select -p
-          xcodebuild -version
-          xcodebuild -showsdks
+          set -e
+
+          echo "=== Current directory ==="
+          pwd
+
+          echo "=== Files ==="
+          find . -maxdepth 2 -type f | sort
+
+          if [ ! -f "project.pbxproj" ]; then
+            echo "❌ Không tìm thấy project.pbxproj"
+            exit 1
+          fi
+
+          mkdir -p "ShinnCheat.xcodeproj"
+          cp "project.pbxproj" "ShinnCheat.xcodeproj/project.pbxproj"
+
+          echo "✅ Đã tạo ShinnCheat.xcodeproj"
+
+          xcodebuild \
+            -project "ShinnCheat.xcodeproj" \
+            -list
 
       - name: Build Shinn Cheat
         run: |
@@ -30,7 +28,7 @@ jobs:
 
           xcodebuild \
             -project "ShinnCheat.xcodeproj" \
-            -scheme "ShinnCheat" \
+            -target "ShinnCheat" \
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
@@ -39,56 +37,3 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             clean build
-
-      - name: Verify App
-        run: |
-          set -e
-
-          APP_PATH="build/Build/Products/Release-iphoneos/ShinnCheat.app"
-
-          if [ ! -d "$APP_PATH" ]; then
-            echo "❌ Không tìm thấy ShinnCheat.app"
-            exit 1
-          fi
-
-          echo "✅ Tìm thấy ShinnCheat.app"
-          ls -la "$APP_PATH"
-
-      - name: Create IPA
-        run: |
-          set -e
-
-          rm -rf Payload
-          rm -f ShinnCheat.ipa
-
-          mkdir -p Payload
-
-          cp -R \
-            "build/Build/Products/Release-iphoneos/ShinnCheat.app" \
-            "Payload/ShinnCheat.app"
-
-          cd Payload
-          zip -r "../ShinnCheat.ipa" "ShinnCheat.app"
-          cd ..
-
-          rm -rf Payload
-
-          echo "✅ IPA đã tạo:"
-          ls -lh ShinnCheat.ipa
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShinnCheat-iOS-IPA
-          path: ShinnCheat.ipa
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload Build Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShinnCheat-Build-Logs
-          path: |
-            build/
-          retention-days: 7
