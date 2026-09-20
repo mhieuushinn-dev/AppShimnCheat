@@ -15,18 +15,15 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # 1. Lấy source từ repository
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Kiểm tra môi trường Xcode
       - name: Check Xcode
         run: |
           xcode-select -p
           xcodebuild -version
           xcodebuild -showsdks
 
-      # 3. Build iOS Release
       - name: Build Shinn Cheat
         run: |
           set -e
@@ -43,7 +40,6 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             clean build
 
-      # 4. Kiểm tra file .app
       - name: Verify App
         run: |
           set -e
@@ -55,10 +51,9 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Tìm thấy:"
+          echo "✅ Tìm thấy ShinnCheat.app"
           ls -la "$APP_PATH"
 
-      # 5. Tạo IPA
       - name: Create IPA
         run: |
           set -e
@@ -81,7 +76,6 @@ jobs:
           echo "✅ IPA đã tạo:"
           ls -lh ShinnCheat.ipa
 
-      # 6. Upload IPA lên GitHub Actions
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
@@ -90,12 +84,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # 7. Upload file app để debug nếu cần
       - name: Upload Build Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ShinnCheat-Build
+          name: ShinnCheat-Build-Logs
           path: |
             build/
           retention-days: 7
