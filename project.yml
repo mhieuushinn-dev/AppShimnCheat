@@ -1,21 +1,17 @@
 name: ShinnCheat
-
 options:
-  bundleIdPrefix: com.apple.mobile.MobileHouseArrest
+  bundleIdPrefix: com.shinn
   deploymentTarget:
     iOS: "17.0"
-
 settings:
   base:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "2.0"
     CURRENT_PROJECT_VERSION: "2"
-
 targets:
   ShinnCheat:
     type: application
     platform: iOS
-
     sources:
       - path: ShinnCheat
         optional: true
@@ -37,37 +33,36 @@ targets:
         optional: true
       - path: SecondaryViews.swift
         optional: true
-
+      - path: IMG_1253.jpeg
+        optional: true
+      - path: IMG_1253.jpg
+        optional: true
+      - path: IMG_1253.JPG
+        optional: true
+      - path: IMG_1253.JPEG
+        optional: true
+      - path: HeroBanner.jpg
+        optional: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.shinn.mobilehousearrest
+        PRODUCT_BUNDLE_IDENTIFIER: com.shinn.shinncheat
         PRODUCT_NAME: ShinnCheat
-
         TARGETED_DEVICE_FAMILY: "1,2"
-
         GENERATE_INFOPLIST_FILE: YES
-
         INFOPLIST_KEY_CFBundleDisplayName: "Shinn Cheat"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-
         INFOPLIST_KEY_UIFileSharingEnabled: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
-        INFOPLIST_KEY_LSApplicationQueriesSchemes: "freefire freefiremax"
-
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
-
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_IDENTITY: ""
-
 schemes:
   ShinnCheat:
     build:
       targets:
         ShinnCheat: all
-
     archive:
       config: Release
