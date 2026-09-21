@@ -13,8 +13,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "2.0"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "2.1"
+    CURRENT_PROJECT_VERSION: "3"
 
 targets:
   ShinnCheat:
@@ -25,30 +25,24 @@ targets:
       - path: ShinnCheat
         optional: true
       - path: ShinnCheatApp.swift
-        optional: true
       - path: ContentView.swift
-        optional: true
       - path: Glass.swift
-        optional: true
       - path: HomeView.swift
-        optional: true
       - path: Models.swift
-        optional: true
       - path: Localization.swift
-        optional: true
       - path: RepoStore.swift
-        optional: true
       - path: PackageViews.swift
-        optional: true
       - path: SecondaryViews.swift
-        optional: true
+      - path: Patch3105Models.swift
+      - path: Patch3105Codec.swift
+      - path: IPAPatchEngine.swift
 
     dependencies:
       - package: ZIPFoundation
 
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.shinn.mobilehousearrest
+        PRODUCT_BUNDLE_IDENTIFIER: com.shinn.cheat
         PRODUCT_NAME: ShinnCheat
 
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -64,11 +58,7 @@ targets:
 
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
 
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-
-        CODE_SIGNING_ALLOWED: NO
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGN_IDENTITY: ""
+        INFOPLIST_KEY_UISupportedInterfaceOrientATIONS_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
 
 schemes:
   ShinnCheat:
