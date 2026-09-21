@@ -1,9 +1,6 @@
 import Foundation
 
-// MARK: - Shinn Patch Models
-
 struct PatchRule: Codable, Identifiable, Hashable {
-
     var id: UUID
     var bundleID: String
     var relativePath: String
@@ -23,10 +20,13 @@ struct PatchRule: Codable, Identifiable, Hashable {
         self.replacementFilename = replacementFilename
         self.replacementData = replacementData
     }
+
+    var hasReplacement: Bool {
+        !replacementFilename.isEmpty
+    }
 }
 
 struct PatchDirectory: Codable, Identifiable, Hashable {
-
     var id: UUID
     var bundleID: String
     var relativePath: String
@@ -43,18 +43,13 @@ struct PatchDirectory: Codable, Identifiable, Hashable {
 }
 
 struct PatchProject: Codable, Identifiable, Hashable {
-
     var id: UUID
     var name: String
     var author: String
-
     var isPrivate: Bool
-
     var createdAt: Date
     var updatedAt: Date
-
     var bundleIdentifiers: [String]
-
     var directories: [PatchDirectory]
     var rules: [PatchRule]
 
@@ -67,7 +62,7 @@ struct PatchProject: Codable, Identifiable, Hashable {
         updatedAt: Date = Date(),
         bundleIdentifiers: [String] = [],
         directories: [PatchDirectory] = [],
-        rules: [PatchRule] = []
+        rules: [PatchRule]
     ) {
         self.id = id
         self.name = name
@@ -81,360 +76,406 @@ struct PatchProject: Codable, Identifiable, Hashable {
     }
 
     var allBundleIdentifiers: [String] {
-
-        var result: [String] = []
         var seen = Set<String>()
 
-        for bundleID in bundleIdentifiers {
-
-            if seen.insert(bundleID).inserted {
-                result.append(bundleID)
-            }
+        return (
+            bundleIdentifiers
+            + directories.map(\.bundleID)
+            + rules.map(\.bundleID)
+        )
+        .filter {
+            seen.insert($0).inserted
         }
+    }
 
-        for directory in directories {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case author
+        case isPrivate
+        case createdAt
+        case updatedAt
+        case bundleIdentifiers
+        case directories
+        case rules
+    }
 
-            if seen.insert(directory.bundleID).inserted {
-                result.append(
-                    directory.bundleID
-                )
-            }
-        }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(
+            keyedBy: CodingKeys.self
+        )
 
-        for rule in rules {
+        id = try container.decode(
+            UUID.self,
+            forKey: .id
+        )
 
-            if seen.insert(rule.bundleID).inserted {
-                result.append(
-                    rule.bundleID
-                )
-            }
-        }
+        name = try container.decode(
+            String.self,
+            forKey: .name
+        )
 
-        return result
+        author = try container.decodeIfPresent(
+            String.self,
+            forKey: .author
+        ) ?? ""
+
+        isPrivate = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isPrivate
+        ) ?? false
+
+        createdAt = try container.decode(
+            Date.self,
+            forKey: .createdAt
+        )
+
+        updatedAt = try container.decode(
+            Date.self,
+            forKey: .updatedAt
+        )
+
+        bundleIdentifiers = try container.decodeIfPresent(
+            [String].self,
+            forKey: .bundleIdentifiers
+        ) ?? []
+
+        directories = try container.decodeIfPresent(
+            [PatchDirectory].self,
+            forKey: .directories
+        ) ?? []
+
+        rules = try container.decode(
+            [PatchRule].self,
+            forKey: .rules
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        try container.encode(
+            id,
+            forKey: .id
+        )
+
+        try container.encode(
+            name,
+            forKey: .name
+        )
+
+        try container.encode(
+            author,
+            forKey: .author
+        )
+
+        try container.encode(
+            isPrivate,
+            forKey: .isPrivate
+        )
+
+        try container.encode(
+            createdAt,
+            forKey: .createdAt
+        )
+
+        try container.encode(
+            updatedAt,
+            forKey: .updatedAt
+        )
+
+        try container.encode(
+            bundleIdentifiers,
+            forKey: .bundleIdentifiers
+        )
+
+        try container.encode(
+            directories,
+            forKey: .directories
+        )
+
+        try container.encode(
+            rules,
+            forKey: .rules
+        )
     }
 }
 
-struct DecodedPatchPackage {
-
-    let project: PatchProject
-
-    let contentKey: Data
-}
-
-struct PatchPackageSummary:
-    Equatable {
+struct PatchPackageSummary: Equatable, Identifiable {
+    var id: UUID {
+        packageID
+    }
 
     let packageID: UUID
-
     let schemaVersion: Int
-
     let isPasswordProtected: Bool
-
     let keyFingerprint: Data
 }
 
-enum PatchPackageError:
-    Error,
-    LocalizedError {
+struct PatchPackageOrigin: Codable, Equatable, Hashable {
+    let repositoryName: String
+    let repositoryURL: URL
+    let packageIdentifier: String
+}
 
+struct EncodedPatchPackage {
+    let data: Data
+    let contentKey: Data
+}
+
+struct DecodedPatchPackage {
+    let project: PatchProject
+    let contentKey: Data
+}
+
+enum PatchPackageError: Error, Equatable {
     case unsupportedFormat
-
     case unsupportedVersion
-
-    case corruptedPackage
-
-    case passwordProtected
-
-    case invalidProject
-
+    case invalidPasswordOrCorruptedPackage
     case invalidBundleIdentifier
-
-    case unsafePath
-
+    case unsafeTargetPath
+    case sizeLimitExceeded
     case duplicateTarget
-
-    case hashMismatch
-
-    case targetBundleNotFound(
-        String
-    )
-
-    case targetFileNotFound(
-        String
-    )
-
-    case applyFailed(
-        String
-    )
-
+    case invalidProject
+    case keychainFailed
+    case targetAppUnavailable(String)
+    case symbolicLinkUnsupported
+    case targetOccupied(String)
+    case projectAlreadyApplied
+    case restoreTargetsChanged([String])
+    case activePatchCannotBeDeleted
+    case privatePatchRequiresPassword
+    case privateOperationFailed
+    case applyFailed
     case restoreFailed
+    case resetFailed
+    case invalidImportLink
+    case remoteImportFailed
+}
 
-    case noIPASelected
-
-    case signingRequired
-
+extension PatchPackageError: LocalizedError {
     var errorDescription: String? {
-
         switch self {
-
         case .unsupportedFormat:
-            return "File không phải package patch hợp lệ."
+            return "Unsupported patch package format."
 
         case .unsupportedVersion:
-            return "Phiên bản package patch không được hỗ trợ."
+            return "Unsupported patch package version."
 
-        case .corruptedPackage:
-            return "Package patch bị lỗi hoặc dữ liệu không hợp lệ."
-
-        case .passwordProtected:
-            return "Package này yêu cầu key/password."
-
-        case .invalidProject:
-            return "Cấu trúc patch project không hợp lệ."
+        case .invalidPasswordOrCorruptedPackage:
+            return "Invalid password or corrupted patch package."
 
         case .invalidBundleIdentifier:
-            return "Bundle ID trong patch không hợp lệ."
+            return "Invalid bundle identifier."
 
-        case .unsafePath:
-            return "Patch chứa đường dẫn không an toàn."
+        case .unsafeTargetPath:
+            return "Unsafe target path."
+
+        case .sizeLimitExceeded:
+            return "Patch package exceeds the supported size."
 
         case .duplicateTarget:
-            return "Patch có target bị trùng."
+            return "Patch contains duplicate targets."
 
-        case .hashMismatch:
-            return "SHA-256 của package không khớp."
+        case .invalidProject:
+            return "Invalid patch project."
 
-        case .targetBundleNotFound(let bundle):
-            return "Không tìm thấy app bundle \(bundle)."
+        case .keychainFailed:
+            return "Keychain operation failed."
 
-        case .targetFileNotFound(let path):
-            return "Không tìm thấy file target: \(path)."
+        case .targetAppUnavailable(let bundleID):
+            return "Target app unavailable: \(bundleID)"
 
-        case .applyFailed(let reason):
-            return "Apply patch thất bại: \(reason)"
+        case .symbolicLinkUnsupported:
+            return "Symbolic links are not supported."
+
+        case .targetOccupied(let target):
+            return "Target is already occupied: \(target)"
+
+        case .projectAlreadyApplied:
+            return "Project is already applied."
+
+        case .restoreTargetsChanged(let paths):
+            return "Targets changed:\n\(paths.joined(separator: "\n"))"
+
+        case .activePatchCannotBeDeleted:
+            return "Active patch cannot be deleted."
+
+        case .privatePatchRequiresPassword:
+            return "Private patch requires a password."
+
+        case .privateOperationFailed:
+            return "Private patch operation failed."
+
+        case .applyFailed:
+            return "Patch apply failed."
 
         case .restoreFailed:
-            return "Không thể khôi phục."
+            return "Patch restore failed."
 
-        case .noIPASelected:
-            return "Bạn chưa chọn IPA."
+        case .resetFailed:
+            return "Patch reset failed."
 
-        case .signingRequired:
-            return "IPA đã được sửa và cần được ký lại."
+        case .invalidImportLink:
+            return "Invalid import link."
+
+        case .remoteImportFailed:
+            return "Remote import failed."
         }
     }
 }
 
-// MARK: - Validator
+enum PatchPackageLimits {
+    static let maximumPathBytes = 4_096
+    static let maximumAuthorBytes = 160
+    static let maximumPasswordBytes = 1_024
 
-enum PatchValidator {
+    static let minimumKDFIterations = 100_000
+    static let defaultKDFIterations = 250_000
+    static let maximumKDFIterations = 1_000_000
+}
 
-    static func bundleID(
-        _ value: String
+enum PatchPathValidator {
+
+    private static let applicationRoot =
+        "/private/var/mobile/Containers/Data/Application"
+
+    static func canonicalBundleIdentifier(
+        _ rawValue: String
     ) throws -> String {
 
-        let value =
-            value.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
+        let value = rawValue.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
 
         guard
             !value.isEmpty,
-            value.count <= 255,
+            value.utf8.count <= 255,
+            UUID(uuidString: value) == nil,
             !value.contains("/"),
-            !value.contains("\\")
-        else {
-            throw PatchPackageError
-                .invalidBundleIdentifier
-        }
-
-        let parts =
-            value.split(
-                separator: ".",
-                omittingEmptySubsequences: false
+            !value.contains("\\"),
+            !value.unicodeScalars.contains(
+                where: CharacterSet.controlCharacters.contains
             )
-
-        guard parts.count >= 2 else {
-            throw PatchPackageError
-                .invalidBundleIdentifier
+        else {
+            throw PatchPackageError.invalidBundleIdentifier
         }
 
-        for part in parts {
+        let components = value.split(
+            separator: ".",
+            omittingEmptySubsequences: false
+        )
 
-            guard !part.isEmpty else {
-                throw PatchPackageError
-                    .invalidBundleIdentifier
-            }
+        guard components.count >= 2 else {
+            throw PatchPackageError.invalidBundleIdentifier
+        }
 
-            for scalar in part.unicodeScalars {
-
-                let number =
-                    scalar.value
-
-                let valid =
-                    (48...57).contains(number) ||
-                    (65...90).contains(number) ||
-                    (97...122).contains(number) ||
-                    number == 45
-
-                guard valid else {
-                    throw PatchPackageError
-                        .invalidBundleIdentifier
-                }
-            }
-
+        for component in components {
             guard
-                part.first != "-",
-                part.last != "-"
+                !component.isEmpty,
+                component.unicodeScalars.allSatisfy({ scalar in
+                    let value = scalar.value
+
+                    return
+                        (48...57).contains(value) ||
+                        (65...90).contains(value) ||
+                        (97...122).contains(value) ||
+                        value == 45
+                }),
+                component.first != "-",
+                component.last != "-"
             else {
-                throw PatchPackageError
-                    .invalidBundleIdentifier
+                throw PatchPackageError.invalidBundleIdentifier
             }
         }
 
         return value
     }
 
-    static func relativePath(
-        _ value: String
+    static func canonicalRelativePath(
+        _ rawValue: String
     ) throws -> String {
 
-        let value =
-            value.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
+        let value = rawValue.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
 
         guard
             !value.isEmpty,
+            value.utf8.count <= PatchPackageLimits.maximumPathBytes,
             !value.hasPrefix("/"),
             !value.contains("\\"),
-            !value.contains("//")
+            !value.contains("//"),
+            !value.unicodeScalars.contains(
+                where: CharacterSet.controlCharacters.contains
+            )
         else {
-            throw PatchPackageError
-                .unsafePath
+            throw PatchPackageError.unsafeTargetPath
         }
 
-        let components =
-            value.split(
-                separator: "/",
-                omittingEmptySubsequences: false
-            )
+        let components = value.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
 
         guard components.allSatisfy({
             !$0.isEmpty &&
             $0 != "." &&
             $0 != ".."
         }) else {
-            throw PatchPackageError
-                .unsafePath
+            throw PatchPackageError.unsafeTargetPath
         }
 
-        return components.joined(
-            separator: "/"
-        )
+        return components.joined(separator: "/")
     }
 
-    static func validate(
-        _ project: PatchProject
-    ) throws {
+    static func resolveContainedTargetURL(
+        relativePath: String,
+        containerRoot: URL
+    ) throws -> URL {
 
-        guard
-            !project.name
-                .trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                )
-                .isEmpty
-        else {
-            throw PatchPackageError
-                .invalidProject
+        let path = try canonicalRelativePath(
+            relativePath
+        )
+
+        let root = canonicalFileURL(
+            containerRoot
+        )
+
+        let target = root
+            .appendingPathComponent(
+                path,
+                isDirectory: false
+            )
+            .standardizedFileURL
+
+        guard target.path.hasPrefix(
+            root.path + "/"
+        ) else {
+            throw PatchPackageError.unsafeTargetPath
         }
 
-        var bundles =
-            Set<String>()
+        return target
+    }
 
-        for bundle in
-            project.bundleIdentifiers {
+    static func canonicalFileURL(
+        _ url: URL
+    ) -> URL {
 
-            let canonical =
-                try bundleID(bundle)
+        var path = url.standardizedFileURL.path
 
-            guard
-                canonical == bundle,
-                bundles.insert(bundle).inserted
-            else {
-                throw PatchPackageError
-                    .invalidProject
-            }
+        if path == "/var" ||
+            path.hasPrefix("/var/") {
+
+            path = "/private" + path
         }
 
-        var targets =
-            Set<String>()
-
-        for directory in
-            project.directories {
-
-            let bundle =
-                try bundleID(
-                    directory.bundleID
-                )
-
-            let path =
-                try relativePath(
-                    directory.relativePath
-                )
-
-            guard
-                bundle == directory.bundleID,
-                path == directory.relativePath
-            else {
-                throw PatchPackageError
-                    .invalidProject
-            }
-
-            let key =
-                "\(bundle)\0\(path)"
-
-            guard
-                targets.insert(key).inserted
-            else {
-                throw PatchPackageError
-                    .duplicateTarget
-            }
-        }
-
-        for rule in
-            project.rules {
-
-            let bundle =
-                try bundleID(
-                    rule.bundleID
-                )
-
-            let path =
-                try relativePath(
-                    rule.relativePath
-                )
-
-            guard
-                bundle == rule.bundleID,
-                path == rule.relativePath,
-                !rule.replacementFilename.isEmpty,
-                !rule.replacementFilename.contains("/"),
-                !rule.replacementFilename.contains("\\")
-            else {
-                throw PatchPackageError
-                    .invalidProject
-            }
-
-            let key =
-                "\(bundle)\0\(path)"
-
-            guard
-                targets.insert(key).inserted
-            else {
-                throw PatchPackageError
-                    .duplicateTarget
-            }
-        }
+        return URL(
+            fileURLWithPath: path,
+            isDirectory: url.hasDirectoryPath
+        )
+        .standardizedFileURL
     }
 }
