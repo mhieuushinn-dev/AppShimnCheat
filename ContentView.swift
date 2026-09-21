@@ -90,18 +90,23 @@ struct RoleGateView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 22) {
-                    Spacer(minLength: 40)
+                    if pending == nil {
+                        VStack(spacing: 22) {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 46))
 
-                    Image(systemName: "crown.fill")
-                        .font(.system(size: 46))
-
-                    VStack(spacing: 6) {
-                        Text("SHINN CHEAT")
-                            .font(.system(size: 32, weight: .black, design: .rounded))
-                            .tracking(-0.8)
-                        Text(isVI ? "Chọn vai trò để kích hoạt" : "Choose a role to activate")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            VStack(spacing: 6) {
+                                Text("SHINN CHEAT")
+                                    .font(.system(size: 32, weight: .black, design: .rounded))
+                                    .tracking(-0.8)
+                                Text(isVI ? "Chọn vai trò để kích hoạt" : "Choose a role to activate")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, 40)
+                    } else {
+                        Color.clear.frame(height: 12)
                     }
 
                     VStack(spacing: 12) {
@@ -115,6 +120,7 @@ struct RoleGateView: View {
                         passwordCard(role)
                     }
                 }
+                .animation(.easeInOut(duration: 0.2), value: pending)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
@@ -153,12 +159,12 @@ struct RoleGateView: View {
                 .disabled(closing)
 
             if closing {
-                Text(isVI ? "Sai 3 lần. Ứng dụng sẽ tự đóng." : "3 wrong attempts. The app will close.")
+                Text(isVI ? "Bạn là con bò. Ứng dụng sẽ tự đóng." : "You are a cow. The app will close.")
                     .font(.footnote.bold())
                     .foregroundStyle(.red)
             } else if attempts > 0 {
-                Text((isVI ? "Sai mật khẩu " : "Wrong password ") + "(\(attempts)/3)")
-                    .font(.footnote)
+                Text(isVI ? "Bạn là con bò" : "You are a cow")
+                    .font(.footnote.bold())
                     .foregroundStyle(.red)
             }
 
