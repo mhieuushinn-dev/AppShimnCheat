@@ -55,7 +55,6 @@ struct HomeView: View {
     private var hero: some View {
         if let ui = HeroBanner.image {
             bannerCard(ui)
-            noteRow
         } else {
             classicHero
         }
@@ -74,45 +73,21 @@ struct HomeView: View {
             )
     }
 
-    private var noteRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(settings.t(.heroNote))
-                .font(.system(size: 13, weight: .semibold))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .shinnGlass(radius: 16)
-    }
-
     private var classicHero: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
-                CatLogo(size: 84)
+        HStack(spacing: 16) {
+            CatLogo(size: 84)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("APP", systemImage: "crown.fill")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
-                    Text("SHINN CHEAT")
-                        .font(.system(size: 32, weight: .black, design: .rounded))
-                        .tracking(-1)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                }
-
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 6) {
+                Label("APP", systemImage: "crown.fill")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                Text("SHINN CHEAT")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .tracking(-1)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
 
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                Text(settings.t(.heroNote))
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Spacer(minLength: 0)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
