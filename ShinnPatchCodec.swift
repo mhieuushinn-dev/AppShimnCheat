@@ -3,51 +3,231 @@ import CryptoKit
 import Foundation
 import Security
 
-enum Patch3105Codec {
+enum ShinnPatchCodec {
 
-    private static let magic = Data("3105PATCH\0".utf8)
+    private static let magic =
+        Data("3105PATCH\0".utf8)
 
     static let latestSchemaVersion = 3
+
     private static let minimumSchemaVersion = 1
 
     private struct Envelope: Codable {
+
         let schemaVersion: Int
         let keyAADVersion: Int?
+
         let packageID: UUID
+
         let isPasswordProtected: Bool
+
         let kdfSalt: Data?
         let kdfIterations: Int?
+
         let wrappedContentKey: Data?
         let publicContentKey: Data?
+
         let keyFingerprint: Data
+
         let encryptedPayload: Data
     }
 
     private struct Payload: Codable {
+
         let project: PatchProject
-        let replacementDigests: [String: Data]
+
+        let replacementDigests: [
+            String: Data
+        ]
     }
 
-    // MARK: - Public API
+    // MARK: Encode
 
-    static func inspect(_ data: Data) throws -> PatchPackageSummary {
-        let envelope = try parseEnvelope(data)
+    static func encodeNew(
+        project: PatchProject,
+        password: String?,
+        kdfIterations: Int =
+            PatchPackageLimits.defaultKDFIterations
+    ) throws -> EncodedPatchPackage {
+
+        try encode(
+            project: project,
+            password: password,
+            schemaVersion: latestSchemaVersion,
+            kdfIterations: kdfIterations
+        )
+    }
+
+    static func encodeLegacyV1(
+        project: PatchProject,
+        password: String?,
+        kdfIterations: Int =
+            PatchPackageLimits.defaultKDFIterations
+    ) throws -> EncodedPatchPackage {
+
+        try encode(
+            project: project,
+            password: password,
+            schemaVersion: 1,
+            kdfIterations: kdfIterations
+        )
+    }
+
+    static func encodeLegacyV2(
+        project: PatchProject,
+        password: String?,
+        kdfIterations: Int =
+            PatchPackageLimits.defaultKDFIterations
+    ) throws -> EncodedPatchPackage {
+
+        try encode(
+            project: project,
+            password: password,
+            schemaVersion: 2,
+            kdfIterations: kdfIterations
+        )
+    }
+
+    private static func encode(
+        project: PatchProject,
+        password: String?,
+        schemaVersion: Int,
+        kdfIterations: Int
+    ) throws -> EncodedPatchPackage {
+
+        try validate(project)
+
+        guard
+            (minimumSchemaVersion...latestSchemaVersion)
+                .contains(schemaVersion)
+        else {
+            throw PatchPackageError.unsupportedVersion
+        }
+
+        let contentKey =
+            try randomData(count: 32)
+
+        let protected =
+            !(password ?? "").isEmpty
+
+        guard
+            !project.isPrivate || protected
+        else {
+            throw PatchPackageError.privatePatchRequiresPassword
+        }
+
+        guard
+            !project.isPrivate ||
+            schemaVersion >= 3
+        else {
+            throw PatchPackageError.unsupportedVersion
+        }
+
+        let salt: Data?
+        let iterations: Int?
+        let wrappedKey: Data?
+        let publicKey: Data?
+
+        if protected {
+
+            guard
+                let password,
+                password.utf8.count <=
+                    PatchPackageLimits.maximumPasswordBytes,
+                kdfIterations >=
+                    PatchPackageLimits.minimumKDFIterations,
+                kdfIterations <=
+                    PatchPackageLimits.maximumKDFIterations
+            else {
+                throw PatchPackageError.invalidProject
+            }
+
+            salt =
+                try randomData(count: 16)
+
+            iterations =
+                kdfIterations
+
+            let wrappingKey =
+                try deriveKey(
+                    password: password,
+                    salt: salt!,
+                    iterations: kdfIterations
+                )
+
+            wrappedKey =
+                try seal(
+                    contentKey,
+                    key: wrappingKey,
+                    aad: keyAAD(
+                        for: project.id,
+                        version: schemaVersion
+                    )
+                )
+
+            publicKey = nil
+
+        } else {
+
+            salt = nil
+            iterations = nil
+            wrappedKey = nil
+
+            publicKey = contentKey
+        }
+
+        let envelope =
+            try makeEnvelope(
+                project: project,
+                schemaVersion: schemaVersion,
+                keyAADVersion:
+                    protected
+                    ? schemaVersion
+                    : nil,
+                contentKey: contentKey,
+                isPasswordProtected: protected,
+                kdfSalt: salt,
+                kdfIterations: iterations,
+                wrappedContentKey: wrappedKey,
+                publicContentKey: publicKey
+            )
+
+        return EncodedPatchPackage(
+            data: try serialize(envelope),
+            contentKey: contentKey
+        )
+    }
+
+    // MARK: Inspect
+
+    static func inspect(
+        _ data: Data
+    ) throws -> PatchPackageSummary {
+
+        let envelope =
+            try parseEnvelope(data)
 
         return PatchPackageSummary(
             packageID: envelope.packageID,
             schemaVersion: envelope.schemaVersion,
-            isPasswordProtected: envelope.isPasswordProtected,
-            keyFingerprint: envelope.keyFingerprint
+            isPasswordProtected:
+                envelope.isPasswordProtected,
+            keyFingerprint:
+                envelope.keyFingerprint
         )
     }
 
+    // MARK: Decode
+
     static func decode(
         _ data: Data,
-        password: String? = nil
+        password: String?
     ) throws -> DecodedPatchPackage {
 
         do {
-            let envelope = try parseEnvelope(data)
+
+            let envelope =
+                try parseEnvelope(data)
 
             let contentKey: Data
 
@@ -56,34 +236,44 @@ enum Patch3105Codec {
                 guard
                     let password,
                     !password.isEmpty,
-                    password.utf8.count <= PatchPackageLimits.maximumPasswordBytes,
+                    password.utf8.count <=
+                        PatchPackageLimits.maximumPasswordBytes,
                     let salt = envelope.kdfSalt,
                     let iterations = envelope.kdfIterations,
-                    let wrappedKey = envelope.wrappedContentKey
+                    let wrappedKey =
+                        envelope.wrappedContentKey
                 else {
-                    throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                    throw PatchPackageError
+                        .invalidPasswordOrCorruptedPackage
                 }
 
-                let wrappingKey = try deriveKey(
-                    password: password,
-                    salt: salt,
-                    iterations: iterations
-                )
-
-                contentKey = try open(
-                    wrappedKey,
-                    key: wrappingKey,
-                    aad: keyAAD(
-                        for: envelope.packageID,
-                        version: envelope.keyAADVersion
-                            ?? envelope.schemaVersion
+                let wrappingKey =
+                    try deriveKey(
+                        password: password,
+                        salt: salt,
+                        iterations: iterations
                     )
-                )
+
+                contentKey =
+                    try open(
+                        wrappedKey,
+                        key: wrappingKey,
+                        aad: keyAAD(
+                            for: envelope.packageID,
+                            version:
+                                envelope.keyAADVersion ??
+                                envelope.schemaVersion
+                        )
+                    )
 
             } else {
 
-                guard let storedKey = envelope.publicContentKey else {
-                    throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                guard
+                    let storedKey =
+                        envelope.publicContentKey
+                else {
+                    throw PatchPackageError
+                        .invalidPasswordOrCorruptedPackage
                 }
 
                 contentKey = storedKey
@@ -94,20 +284,27 @@ enum Patch3105Codec {
                 contentKey: contentKey
             )
 
-        } catch let error as PatchPackageError {
+        } catch let error
+                    as PatchPackageError {
 
             switch error {
+
             case .unsupportedFormat,
                  .unsupportedVersion,
                  .sizeLimitExceeded:
+
                 throw error
 
             default:
-                throw PatchPackageError.invalidPasswordOrCorruptedPackage
+
+                throw PatchPackageError
+                    .invalidPasswordOrCorruptedPackage
             }
 
         } catch {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
     }
 
@@ -117,31 +314,186 @@ enum Patch3105Codec {
     ) throws -> DecodedPatchPackage {
 
         do {
-            let envelope = try parseEnvelope(data)
+
+            let envelope =
+                try parseEnvelope(data)
 
             return try decode(
                 envelope: envelope,
                 contentKey: contentKey
             )
 
-        } catch let error as PatchPackageError {
+        } catch let error
+                    as PatchPackageError {
 
             switch error {
+
             case .unsupportedFormat,
                  .unsupportedVersion,
                  .sizeLimitExceeded:
+
                 throw error
 
             default:
-                throw PatchPackageError.invalidPasswordOrCorruptedPackage
+
+                throw PatchPackageError
+                    .invalidPasswordOrCorruptedPackage
             }
 
         } catch {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
     }
 
-    // MARK: - Decode
+    // MARK: Update
+
+    static func update(
+        _ originalData: Data,
+        project: PatchProject,
+        contentKey: Data,
+        schemaVersion requestedSchemaVersion: Int? = nil
+    ) throws -> Data {
+
+        let oldEnvelope =
+            try parseEnvelope(originalData)
+
+        guard
+            project.id == oldEnvelope.packageID,
+            fingerprint(contentKey) ==
+                oldEnvelope.keyFingerprint
+        else {
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
+        }
+
+        try validate(project)
+
+        let schemaVersion =
+            requestedSchemaVersion ??
+            oldEnvelope.schemaVersion
+
+        guard
+            (minimumSchemaVersion...latestSchemaVersion)
+                .contains(schemaVersion)
+        else {
+            throw PatchPackageError.unsupportedVersion
+        }
+
+        guard
+            !project.isPrivate ||
+            oldEnvelope.isPasswordProtected
+        else {
+            throw PatchPackageError
+                .privatePatchRequiresPassword
+        }
+
+        guard
+            !project.isPrivate ||
+            schemaVersion >= 3
+        else {
+            throw PatchPackageError.unsupportedVersion
+        }
+
+        let envelope =
+            try makeEnvelope(
+                project: project,
+                schemaVersion: schemaVersion,
+                keyAADVersion:
+                    oldEnvelope.isPasswordProtected
+                    ? (
+                        oldEnvelope.keyAADVersion ??
+                        oldEnvelope.schemaVersion
+                    )
+                    : nil,
+                contentKey: contentKey,
+                isPasswordProtected:
+                    oldEnvelope.isPasswordProtected,
+                kdfSalt:
+                    oldEnvelope.kdfSalt,
+                kdfIterations:
+                    oldEnvelope.kdfIterations,
+                wrappedContentKey:
+                    oldEnvelope.wrappedContentKey,
+                publicContentKey:
+                    oldEnvelope.publicContentKey
+            )
+
+        return try serialize(envelope)
+    }
+
+    // MARK: Envelope
+
+    private static func makeEnvelope(
+        project: PatchProject,
+        schemaVersion: Int,
+        keyAADVersion: Int?,
+        contentKey: Data,
+        isPasswordProtected: Bool,
+        kdfSalt: Data?,
+        kdfIterations: Int?,
+        wrappedContentKey: Data?,
+        publicContentKey: Data?
+    ) throws -> Envelope {
+
+        let digests =
+            Dictionary(
+                uniqueKeysWithValues:
+                    project.rules.map {
+                        (
+                            $0.id.uuidString,
+                            Data(
+                                SHA256.hash(
+                                    data: $0.replacementData
+                                )
+                            )
+                        )
+                    }
+            )
+
+        let payload =
+            Payload(
+                project: project,
+                replacementDigests: digests
+            )
+
+        let encoder =
+            PropertyListEncoder()
+
+        encoder.outputFormat = .binary
+
+        let payloadData =
+            try encoder.encode(payload)
+
+        let encryptedPayload =
+            try seal(
+                payloadData,
+                key: contentKey,
+                aad: payloadAAD(
+                    for: project.id,
+                    version: schemaVersion
+                )
+            )
+
+        return Envelope(
+            schemaVersion: schemaVersion,
+            keyAADVersion: keyAADVersion,
+            packageID: project.id,
+            isPasswordProtected:
+                isPasswordProtected,
+            kdfSalt: kdfSalt,
+            kdfIterations: kdfIterations,
+            wrappedContentKey:
+                wrappedContentKey,
+            publicContentKey:
+                publicContentKey,
+            keyFingerprint:
+                fingerprint(contentKey),
+            encryptedPayload:
+                encryptedPayload
+        )
+    }
 
     private static func decode(
         envelope: Envelope,
@@ -150,70 +502,77 @@ enum Patch3105Codec {
 
         guard
             contentKey.count == 32,
-            fingerprint(contentKey) == envelope.keyFingerprint
+            fingerprint(contentKey) ==
+                envelope.keyFingerprint
         else {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
 
-        let payloadData = try open(
-            envelope.encryptedPayload,
-            key: contentKey,
-            aad: payloadAAD(
-                for: envelope.packageID,
-                version: envelope.schemaVersion
+        let payloadData =
+            try open(
+                envelope.encryptedPayload,
+                key: contentKey,
+                aad: payloadAAD(
+                    for: envelope.packageID,
+                    version: envelope.schemaVersion
+                )
             )
-        )
 
-        let decoder = PropertyListDecoder()
+        let decoder =
+            PropertyListDecoder()
 
-        let payload: Payload
-
-        do {
-            payload = try decoder.decode(
+        let payload =
+            try decoder.decode(
                 Payload.self,
                 from: payloadData
             )
-        } catch {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
-        }
 
-        guard payload.project.id == envelope.packageID else {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+        guard
+            payload.project.id ==
+                envelope.packageID
+        else {
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
 
         guard
-            !payload.project.isPrivate
-            || (
-                envelope.schemaVersion >= 3
-                && envelope.isPasswordProtected
+            !payload.project.isPrivate ||
+            (
+                envelope.schemaVersion >= 3 &&
+                envelope.isPasswordProtected
             )
         else {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
 
         try validate(payload.project)
 
         guard
-            payload.replacementDigests.count
-                == payload.project.rules.count
+            payload.replacementDigests.count ==
+                payload.project.rules.count
         else {
-            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+            throw PatchPackageError
+                .invalidPasswordOrCorruptedPackage
         }
 
         for rule in payload.project.rules {
 
-            let actual = Data(
-                SHA256.hash(
-                    data: rule.replacementData
+            let actual =
+                Data(
+                    SHA256.hash(
+                        data: rule.replacementData
+                    )
                 )
-            )
 
             guard
                 payload.replacementDigests[
                     rule.id.uuidString
                 ] == actual
             else {
-                throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                throw PatchPackageError
+                    .invalidPasswordOrCorruptedPackage
             }
         }
 
@@ -223,19 +582,19 @@ enum Patch3105Codec {
         )
     }
 
-    // MARK: - Validation
+    // MARK: Validation
 
     static func validate(
         _ project: PatchProject
     ) throws {
 
-        let name = project.name
-            .trimmingCharacters(
+        let name =
+            project.name.trimmingCharacters(
                 in: .whitespacesAndNewlines
             )
 
-        let author = project.author
-            .trimmingCharacters(
+        let author =
+            project.author.trimmingCharacters(
                 in: .whitespacesAndNewlines
             )
 
@@ -243,8 +602,8 @@ enum Patch3105Codec {
             !name.isEmpty,
             name.utf8.count <= 120,
             author == project.author,
-            author.utf8.count
-                <= PatchPackageLimits.maximumAuthorBytes,
+            author.utf8.count <=
+                PatchPackageLimits.maximumAuthorBytes,
             !author.unicodeScalars.contains(
                 where: CharacterSet.controlCharacters.contains
             ),
@@ -255,7 +614,8 @@ enum Patch3105Codec {
 
         var bundles = Set<String>()
 
-        for suppliedBundleID in project.bundleIdentifiers {
+        for suppliedBundleID
+            in project.bundleIdentifiers {
 
             let bundleID =
                 try PatchPathValidator
@@ -293,13 +653,16 @@ enum Patch3105Codec {
             guard
                 bundleID == directory.bundleID,
                 relativePath == directory.relativePath,
-                directoryIDs.insert(directory.id).inserted
+                directoryIDs.insert(
+                    directory.id
+                ).inserted
             else {
                 throw PatchPackageError.invalidProject
             }
 
-            if !bundles.isEmpty,
-               !bundles.contains(bundleID) {
+            if !bundles.isEmpty &&
+                !bundles.contains(bundleID) {
+
                 throw PatchPackageError.invalidProject
             }
 
@@ -341,8 +704,9 @@ enum Patch3105Codec {
                 throw PatchPackageError.invalidProject
             }
 
-            if !bundles.isEmpty,
-               !bundles.contains(bundleID) {
+            if !bundles.isEmpty &&
+                !bundles.contains(bundleID) {
+
                 throw PatchPackageError.invalidProject
             }
 
@@ -358,7 +722,7 @@ enum Patch3105Codec {
         }
     }
 
-    // MARK: - Envelope
+    // MARK: Parsing
 
     private static func parseEnvelope(
         _ data: Data
@@ -377,12 +741,16 @@ enum Patch3105Codec {
         let envelope: Envelope
 
         do {
-            envelope = try PropertyListDecoder()
-                .decode(
-                    Envelope.self,
-                    from: Data(encoded)
-                )
+
+            envelope =
+                try PropertyListDecoder()
+                    .decode(
+                        Envelope.self,
+                        from: Data(encoded)
+                    )
+
         } catch {
+
             throw PatchPackageError
                 .invalidPasswordOrCorruptedPackage
         }
@@ -407,16 +775,20 @@ enum Patch3105Codec {
             guard
                 envelope.publicContentKey == nil,
                 (
-                    minimumSchemaVersion
-                    ...latestSchemaVersion
-                ).contains(
-                    envelope.keyAADVersion
-                        ?? envelope.schemaVersion
+                    minimumSchemaVersion...
+                    latestSchemaVersion
+                )
+                .contains(
+                    envelope.keyAADVersion ??
+                    envelope.schemaVersion
                 ),
                 envelope.kdfSalt?.count == 16,
-                let iterations = envelope.kdfIterations,
-                iterations >= PatchPackageLimits.minimumKDFIterations,
-                iterations <= PatchPackageLimits.maximumKDFIterations,
+                let iterations =
+                    envelope.kdfIterations,
+                iterations >=
+                    PatchPackageLimits.minimumKDFIterations,
+                iterations <=
+                    PatchPackageLimits.maximumKDFIterations,
                 envelope.wrappedContentKey != nil
             else {
                 throw PatchPackageError
@@ -439,7 +811,26 @@ enum Patch3105Codec {
         return envelope
     }
 
-    // MARK: - AES-GCM
+    private static func serialize(
+        _ envelope: Envelope
+    ) throws -> Data {
+
+        let encoder =
+            PropertyListEncoder()
+
+        encoder.outputFormat = .binary
+
+        let body =
+            try encoder.encode(envelope)
+
+        var result = magic
+
+        result.append(body)
+
+        return result
+    }
+
+    // MARK: Crypto
 
     private static func seal(
         _ plaintext: Data,
@@ -452,13 +843,16 @@ enum Patch3105Codec {
                 .invalidPasswordOrCorruptedPackage
         }
 
-        let sealed = try AES.GCM.seal(
-            plaintext,
-            using: SymmetricKey(data: key),
-            authenticating: aad
-        )
+        let sealed =
+            try AES.GCM.seal(
+                plaintext,
+                using: SymmetricKey(data: key),
+                authenticating: aad
+            )
 
-        guard let combined = sealed.combined else {
+        guard
+            let combined = sealed.combined
+        else {
             throw PatchPackageError
                 .invalidPasswordOrCorruptedPackage
         }
@@ -477,9 +871,10 @@ enum Patch3105Codec {
                 .invalidPasswordOrCorruptedPackage
         }
 
-        let box = try AES.GCM.SealedBox(
-            combined: ciphertext
-        )
+        let box =
+            try AES.GCM.SealedBox(
+                combined: ciphertext
+            )
 
         return try AES.GCM.open(
             box,
@@ -488,8 +883,6 @@ enum Patch3105Codec {
         )
     }
 
-    // MARK: - PBKDF2
-
     private static func deriveKey(
         password: String,
         salt: Data,
@@ -497,36 +890,44 @@ enum Patch3105Codec {
     ) throws -> Data {
 
         guard
-            iterations >= PatchPackageLimits.minimumKDFIterations,
-            iterations <= PatchPackageLimits.maximumKDFIterations
+            iterations >=
+                PatchPackageLimits.minimumKDFIterations,
+            iterations <=
+                PatchPackageLimits.maximumKDFIterations
         else {
             throw PatchPackageError
                 .invalidPasswordOrCorruptedPackage
         }
 
-        let passwordData = Data(password.utf8)
+        let passwordData =
+            Data(password.utf8)
 
         let derivedKeyLength = 32
 
-        var output = Data(
-            count: derivedKeyLength
-        )
+        var output =
+            Data(count: derivedKeyLength)
 
         let status =
             output.withUnsafeMutableBytes { outputBuffer in
 
-                passwordData.withUnsafeBytes { passwordBuffer in
+                passwordData.withUnsafeBytes {
+                    passwordBuffer in
 
-                    salt.withUnsafeBytes { saltBuffer in
+                    salt.withUnsafeBytes {
+                        saltBuffer in
 
                         CCKeyDerivationPBKDF(
                             CCPBKDFAlgorithm(kCCPBKDF2),
                             passwordBuffer
-                                .bindMemory(to: Int8.self)
+                                .bindMemory(
+                                    to: Int8.self
+                                )
                                 .baseAddress,
                             passwordData.count,
                             saltBuffer
-                                .bindMemory(to: UInt8.self)
+                                .bindMemory(
+                                    to: UInt8.self
+                                )
                                 .baseAddress,
                             salt.count,
                             CCPseudoRandomAlgorithm(
@@ -534,7 +935,9 @@ enum Patch3105Codec {
                             ),
                             UInt32(iterations),
                             outputBuffer
-                                .bindMemory(to: UInt8.self)
+                                .bindMemory(
+                                    to: UInt8.self
+                                )
                                 .baseAddress,
                             derivedKeyLength
                         )
@@ -550,16 +953,16 @@ enum Patch3105Codec {
         return output
     }
 
-    // MARK: - Random
-
     private static func randomData(
         count: Int
     ) throws -> Data {
 
-        var data = Data(count: count)
+        var data =
+            Data(count: count)
 
         let status =
             data.withUnsafeMutableBytes { buffer in
+
                 SecRandomCopyBytes(
                     kSecRandomDefault,
                     count,
@@ -573,8 +976,6 @@ enum Patch3105Codec {
 
         return data
     }
-
-    // MARK: - Helpers
 
     private static func fingerprint(
         _ key: Data
@@ -606,170 +1007,6 @@ enum Patch3105Codec {
         Data(
             "3105PATCH/v\(version)/payload/\(packageID.uuidString)"
                 .utf8
-        )
-    }
-
-    // MARK: - Create package
-
-    static func encodeNew(
-        project: PatchProject
-    ) throws -> EncodedPatchPackage {
-
-        try encode(
-            project: project,
-            password: nil,
-            schemaVersion: latestSchemaVersion,
-            kdfIterations: PatchPackageLimits.defaultKDFIterations
-        )
-    }
-
-    private static func encode(
-        project: PatchProject,
-        password: String?,
-        schemaVersion: Int,
-        kdfIterations: Int
-    ) throws -> EncodedPatchPackage {
-
-        try validate(project)
-
-        guard
-            (minimumSchemaVersion...latestSchemaVersion)
-                .contains(schemaVersion)
-        else {
-            throw PatchPackageError.unsupportedVersion
-        }
-
-        let contentKey =
-            try randomData(count: 32)
-
-        let protected =
-            !(password ?? "").isEmpty
-
-        guard
-            !project.isPrivate || protected
-        else {
-            throw PatchPackageError
-                .privatePatchRequiresPassword
-        }
-
-        let salt: Data?
-        let iterations: Int?
-        let wrappedKey: Data?
-        let publicKey: Data?
-
-        if protected {
-
-            guard
-                let password,
-                password.utf8.count
-                    <= PatchPackageLimits.maximumPasswordBytes,
-                kdfIterations
-                    >= PatchPackageLimits.minimumKDFIterations,
-                kdfIterations
-                    <= PatchPackageLimits.maximumKDFIterations
-            else {
-                throw PatchPackageError.invalidProject
-            }
-
-            salt =
-                try randomData(count: 16)
-
-            iterations = kdfIterations
-
-            let wrappingKey =
-                try deriveKey(
-                    password: password,
-                    salt: salt!,
-                    iterations: kdfIterations
-                )
-
-            wrappedKey =
-                try seal(
-                    contentKey,
-                    key: wrappingKey,
-                    aad: keyAAD(
-                        for: project.id,
-                        version: schemaVersion
-                    )
-                )
-
-            publicKey = nil
-
-        } else {
-
-            salt = nil
-            iterations = nil
-            wrappedKey = nil
-            publicKey = contentKey
-        }
-
-        let digests =
-            Dictionary(
-                uniqueKeysWithValues:
-                    project.rules.map {
-                        (
-                            $0.id.uuidString,
-                            Data(
-                                SHA256.hash(
-                                    data: $0.replacementData
-                                )
-                            )
-                        )
-                    }
-            )
-
-        let payload =
-            Payload(
-                project: project,
-                replacementDigests: digests
-            )
-
-        let encoder =
-            PropertyListEncoder()
-
-        encoder.outputFormat = .binary
-
-        let payloadData =
-            try encoder.encode(payload)
-
-        let encryptedPayload =
-            try seal(
-                payloadData,
-                key: contentKey,
-                aad: payloadAAD(
-                    for: project.id,
-                    version: schemaVersion
-                )
-            )
-
-        let envelope =
-            Envelope(
-                schemaVersion: schemaVersion,
-                keyAADVersion:
-                    protected
-                        ? schemaVersion
-                        : nil,
-                packageID: project.id,
-                isPasswordProtected: protected,
-                kdfSalt: salt,
-                kdfIterations: iterations,
-                wrappedContentKey: wrappedKey,
-                publicContentKey: publicKey,
-                keyFingerprint:
-                    fingerprint(contentKey),
-                encryptedPayload:
-                    encryptedPayload
-            )
-
-        let body =
-            try encoder.encode(envelope)
-
-        var result = magic
-        result.append(body)
-
-        return EncodedPatchPackage(
-            data: result,
-            contentKey: contentKey
         )
     }
 }
