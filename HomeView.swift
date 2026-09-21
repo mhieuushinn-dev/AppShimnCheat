@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @EnvironmentObject var settings: AppSettings
@@ -50,21 +51,58 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("APP", systemImage: "crown.fill")
-                    .font(.system(size: 14, weight: .black, design: .rounded))
-                Spacer()
-                Pill(text: "FREE")
+        if let ui = HeroBanner.image {
+            bannerCard(ui)
+            noteRow
+        } else {
+            classicHero
+        }
+    }
+
+    private func bannerCard(_ ui: UIImage) -> some View {
+        Image(uiImage: ui)
+            .resizable()
+            .scaledToFit()
+            .scaleEffect(1.035)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+            )
+    }
+
+    private var noteRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(settings.t(.heroNote))
+                .font(.system(size: 13, weight: .semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .shinnGlass(radius: 16)
+    }
+
+    private var classicHero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 16) {
+                CatLogo(size: 84)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("APP", systemImage: "crown.fill")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                    Text("SHINN CHEAT")
+                        .font(.system(size: 32, weight: .black, design: .rounded))
+                        .tracking(-1)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                }
+
+                Spacer(minLength: 0)
             }
-
-            Text("SHINN CHEAT")
-                .font(.system(size: 37, weight: .black, design: .rounded))
-                .tracking(-1)
-
-            Text(settings.t(.heroFree))
-                .font(.system(size: 14, weight: .bold))
 
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -226,4 +264,65 @@ struct QuickAction: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+// MARK: - Logo mèo (dùng khi chưa có ảnh banner)
+
+struct CatLogo: View {
+    var size: CGFloat = 84
+
+    private static let remoteURL = URL(string: "https://raw.githubusercontent.com/mhieuushinn-dev/ShinnCheatShare/main/IMG_0508.jpeg")
+
+    private var bundled: UIImage? {
+        guard let path = Bundle.main.path(forResource: "CatLogo", ofType: "jpg") else { return nil }
+        return UIImage(contentsOfFile: path)
+    }
+
+    var body: some View {
+        content
+            .frame(width: size, height: size)
+            .background(Color.primary.opacity(0.08))
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 1.5))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let ui = bundled {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFill()
+        } else {
+            AsyncImage(url: CatLogo.remoteURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: size * 0.4))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Banner
+
+enum HeroBanner {
+    static let image: UIImage? = {
+        let names: [(String, String)] = [
+            ("IMG_1253", "jpeg"),
+            ("IMG_1253", "jpg"),
+            ("IMG_1253", "JPG"),
+            ("IMG_1253", "JPEG"),
+            ("HeroBanner", "jpg")
+        ]
+        for (name, ext) in names {
+            if let path = Bundle.main.path(forResource: name, ofType: ext),
+               let img = UIImage(contentsOfFile: path) {
+                return img
+            }
+        }
+        return nil
+    }()
 }
