@@ -16,33 +16,15 @@ targets:
       - path: ShinnCheat
         optional: true
       - path: ShinnCheatApp.swift
-        optional: true
       - path: ContentView.swift
-        optional: true
       - path: Glass.swift
-        optional: true
       - path: HomeView.swift
-        optional: true
       - path: Models.swift
-        optional: true
       - path: Localization.swift
-        optional: true
       - path: RepoStore.swift
-        optional: true
       - path: PackageViews.swift
-        optional: true
       - path: SecondaryViews.swift
-        optional: true
       - path: IMG_1253.jpeg
-        optional: true
-      - path: IMG_1253.jpg
-        optional: true
-      - path: IMG_1253.JPG
-        optional: true
-      - path: IMG_1253.JPEG
-        optional: true
-      - path: HeroBanner.jpg
-        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shinn.shinncheat
