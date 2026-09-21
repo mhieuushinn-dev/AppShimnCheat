@@ -78,7 +78,8 @@ struct RoleGateView: View {
     @EnvironmentObject var session: Session
     @State private var pending: UserRole?
     @State private var password = ""
-    @State private var wrong = false
+    @State private var attempts = 0
+    @State private var closing = false
     @FocusState private var focused: Bool
 
     private var isVI: Bool { settings.language == .vi }
@@ -121,33 +122,17 @@ struct RoleGateView: View {
         }
     }
 
-    private func subtitle(_ role: UserRole) -> String {
-        if role.needsPassword {
-            return isVI ? "Cần nhập mật khẩu" : "Password required"
-        }
-        return isVI ? "Vào thẳng app" : "Enter the app directly"
-    }
-
     private func roleCard(_ role: UserRole) -> some View {
         Button(action: { select(role) }) {
-            HStack(spacing: 14) {
+            HStack(spacing: 16) {
                 IconBox(systemName: role.icon, size: 52)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(role.title)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                    Text(subtitle(role))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                Text(role.title)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
 
                 Spacer(minLength: 0)
-
-                Image(systemName: role.needsPassword ? "lock.fill" : "chevron.right")
-                    .font(.footnote.bold())
-                    .foregroundStyle(.secondary)
             }
-            .padding(12)
+            .padding(14)
             .contentShape(Rectangle())
             .shinnGlass()
         }
@@ -165,9 +150,14 @@ struct RoleGateView: View {
                 .padding(14)
                 .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .onSubmit { submit() }
+                .disabled(closing)
 
-            if wrong {
-                Text(isVI ? "Sai mật khẩu, thử lại." : "Wrong password, try again.")
+            if closing {
+                Text(isVI ? "Sai 3 lần. Ứng dụng sẽ tự đóng." : "3 wrong attempts. The app will close.")
+                    .font(.footnote.bold())
+                    .foregroundStyle(.red)
+            } else if attempts > 0 {
+                Text((isVI ? "Sai mật khẩu " : "Wrong password ") + "(\(attempts)/3)")
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
@@ -198,10 +188,10 @@ struct RoleGateView: View {
     }
 
     private func select(_ role: UserRole) {
+        if closing { return }
         if role.needsPassword {
             pending = role
             password = ""
-            wrong = false
             DispatchQueue.main.async { focused = true }
         } else {
             session.role = role
@@ -209,22 +199,29 @@ struct RoleGateView: View {
     }
 
     private func cancel() {
+        if closing { return }
         pending = nil
         password = ""
-        wrong = false
         focused = false
     }
 
     private func submit() {
-        guard let role = pending else { return }
+        guard let role = pending, !closing else { return }
         if session.verify(password) {
             session.role = role
             pending = nil
             password = ""
-            wrong = false
+            attempts = 0
         } else {
-            wrong = true
+            attempts += 1
             password = ""
+            if attempts >= 3 {
+                closing = true
+                focused = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    exit(0)
+                }
+            }
         }
     }
 }
