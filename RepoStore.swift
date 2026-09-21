@@ -42,7 +42,11 @@ enum PatchState {
 }
 
 func sha256Hex(of url: URL) throws -> String {
-    let data = try Data(contentsOf: url, options: .mappedIfSafe)
+    let data = try Data(
+        contentsOf: url,
+        options: .mappedIfSafe
+    )
+
     return SHA256.hash(data: data)
         .map { String(format: "%02x", $0) }
         .joined()
@@ -58,18 +62,32 @@ final class RepoStore: ObservableObject {
 
     private var didBootstrap = false
 
+    // MARK: - Locations
+
     private var documentsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        )[0]
     }
 
     private var cacheURL: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("repo_default.json")
+        let dir = FileManager.default.urls(
+            for: .cachesDirectory,
+            in: .userDomainMask
+        )[0]
+
+        return dir.appendingPathComponent("repo_default.json")
     }
 
     private var backupDirectory: URL {
-        documentsURL.appendingPathComponent(".ShinnBackups", isDirectory: true)
+        documentsURL.appendingPathComponent(
+            ".ShinnBackups",
+            isDirectory: true
+        )
     }
+
+    // MARK: - Package data
 
     var packages: [RepoPackage] {
         manifest?.packages ?? []
@@ -81,19 +99,33 @@ final class RepoStore: ObservableObject {
 
         for p in packages {
             let category = p.category ?? "Other"
+
             if counts[category] == nil {
                 order.append(category)
             }
+
             counts[category, default: 0] += 1
         }
 
-        return order.map { CategoryInfo(name: $0, count: counts[$0] ?? 0) }
+        return order.map {
+            CategoryInfo(
+                name: $0,
+                count: counts[$0] ?? 0
+            )
+        }
     }
 
+    // MARK: - Bootstrap
+
     func bootstrap(autoRefresh: Bool) async {
-        if didBootstrap { return }
+        if didBootstrap {
+            return
+        }
+
         didBootstrap = true
+
         loadCache()
+
         if manifest == nil || autoRefresh {
             await refresh()
         }
@@ -102,12 +134,19 @@ final class RepoStore: ObservableObject {
     private func loadCache() {
         guard
             let data = try? Data(contentsOf: cacheURL),
-            let decoded = try? JSONDecoder().decode(RepoManifest.self, from: data)
-        else { return }
+            let decoded = try? JSONDecoder().decode(
+                RepoManifest.self,
+                from: data
+            )
+        else {
+            return
+        }
 
         manifest = decoded
         loadState = .loaded
     }
+
+    // MARK: - Remote JSON
 
     func refresh() async {
         loadState = .loading
@@ -118,42 +157,88 @@ final class RepoStore: ObservableObject {
                 cachePolicy: .reloadIgnoringLocalCacheData,
                 timeoutInterval: 20
             )
-            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            request.setValue(
+                "no-cache",
+                forHTTPHeaderField: "Cache-Control"
+            )
+
+            let (data, response) = try await URLSession.shared.data(
+                for: request
+            )
 
             if let http = response as? HTTPURLResponse,
                !(200..<300).contains(http.statusCode) {
                 throw DLError.http(http.statusCode)
             }
 
-            let decoded = try JSONDecoder().decode(RepoManifest.self, from: data)
+            let decoded = try JSONDecoder().decode(
+                RepoManifest.self,
+                from: data
+            )
+
             manifest = decoded
-            try? data.write(to: cacheURL, options: .atomic)
+
+            try? data.write(
+                to: cacheURL,
+                options: .atomic
+            )
+
             loadState = .loaded
+
         } catch {
-            loadState = manifest == nil ? .failed : .loaded
+            if manifest == nil {
+                loadState = .failed
+            } else {
+                loadState = .loaded
+            }
         }
     }
 
+    // MARK: - Download
+
     private func destination(for pkg: RepoPackage) -> URL? {
-        guard let url = URL(string: pkg.download) else { return nil }
-        return documentsURL.appendingPathComponent(url.lastPathComponent)
+        guard
+            let url = URL(string: pkg.download)
+        else {
+            return nil
+        }
+
+        let directory = documentsURL
+
+        return directory.appendingPathComponent(
+            url.lastPathComponent
+        )
     }
 
     func existingFile(for pkg: RepoPackage) -> URL? {
-        guard let destination = destination(for: pkg) else { return nil }
-        guard FileManager.default.fileExists(atPath: destination.path) else { return nil }
+        guard let destination = destination(for: pkg) else {
+            return nil
+        }
+
+        guard FileManager.default.fileExists(
+            atPath: destination.path
+        ) else {
+            return nil
+        }
+
         return destination
     }
 
     func state(for pkg: RepoPackage) -> DownloadState {
-        if let state = downloads[pkg.id] { return state }
-        if let file = existingFile(for: pkg) { return .done(file) }
+        if let state = downloads[pkg.id] {
+            return state
+        }
+
+        if let file = existingFile(for: pkg) {
+            return .done(file)
+        }
+
         return .idle
     }
 
     func download(_ pkg: RepoPackage) async {
+
         guard
             let url = URL(string: pkg.download),
             let destination = destination(for: pkg)
@@ -165,10 +250,14 @@ final class RepoStore: ObservableObject {
         downloads[pkg.id] = .downloading
 
         do {
-            let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+            let (temporaryURL, response) =
+                try await URLSession.shared.download(
+                    from: url
+                )
 
             if let http = response as? HTTPURLResponse,
                !(200..<300).contains(http.statusCode) {
+
                 throw DLError.http(http.statusCode)
             }
 
@@ -177,130 +266,276 @@ final class RepoStore: ObservableObject {
                 .lowercased(),
                !expected.isEmpty {
 
-                let actual = try await Task.detached(priority: .utility) {
+                let actual = try await Task.detached(
+                    priority: .utility
+                ) {
                     try sha256Hex(of: temporaryURL)
                 }.value
 
                 if actual.lowercased() != expected {
-                    try? FileManager.default.removeItem(at: temporaryURL)
+                    try? FileManager.default.removeItem(
+                        at: temporaryURL
+                    )
+
                     throw DLError.hashMismatch
                 }
             }
 
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
+            if FileManager.default.fileExists(
+                atPath: destination.path
+            ) {
+                try FileManager.default.removeItem(
+                    at: destination
+                )
             }
 
-            try FileManager.default.moveItem(at: temporaryURL, to: destination)
+            try FileManager.default.moveItem(
+                at: temporaryURL,
+                to: destination
+            )
+
             downloads[pkg.id] = .done(destination)
+
         } catch let error as DLError {
+
             downloads[pkg.id] = .failed(error)
+
         } catch {
-            downloads[pkg.id] = .failed(.other(error.localizedDescription))
+
+            downloads[pkg.id] = .failed(
+                .other(error.localizedDescription)
+            )
         }
     }
 
-    private func safeDocumentsPath(_ relativePath: String) -> URL? {
-        let clean = relativePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !clean.isEmpty, !clean.contains("..") else { return nil }
+    // MARK: - Patch
 
-        let candidate = documentsURL.appendingPathComponent(clean, isDirectory: false)
+    private func safeDocumentsPath(
+        _ relativePath: String
+    ) -> URL? {
+
+        let clean = relativePath
+            .trimmingCharacters(
+                in: CharacterSet(
+                    charactersIn: "/"
+                )
+            )
+
+        guard !clean.isEmpty else {
+            return nil
+        }
+
+        if clean.contains("..") {
+            return nil
+        }
+
+        let candidate = documentsURL
+            .appendingPathComponent(
+                clean,
+                isDirectory: false
+            )
+
         let base = documentsURL.standardizedFileURL.path
         let path = candidate.standardizedFileURL.path
 
-        guard path == base || path.hasPrefix(base + "/") else { return nil }
+        guard
+            path == base ||
+            path.hasPrefix(base + "/")
+        else {
+            return nil
+        }
+
         return candidate
     }
 
-    private func packageArchive(_ pkg: RepoPackage) -> URL? {
+    private func packageArchive(
+        _ pkg: RepoPackage
+    ) -> URL? {
         existingFile(for: pkg)
     }
 
-    private func patchDestination(_ pkg: RepoPackage) -> URL? {
-        if let custom = pkg.patchPath, !custom.isEmpty {
+    private func patchDestination(
+        _ pkg: RepoPackage
+    ) -> URL? {
+
+        if let custom = pkg.patchPath,
+           !custom.isEmpty {
+
             return safeDocumentsPath(custom)
         }
-        return safeDocumentsPath("Applied/\(pkg.identifier)")
+
+        return safeDocumentsPath(
+            "Applied/\(pkg.identifier)"
+        )
     }
 
-    private func backupURL(for pkg: RepoPackage) -> URL {
-        backupDirectory.appendingPathComponent("\(pkg.identifier).backup", isDirectory: false)
+    private func backupURL(
+        for pkg: RepoPackage
+    ) -> URL {
+
+        backupDirectory.appendingPathComponent(
+            "\(pkg.identifier).backup",
+            isDirectory: false
+        )
     }
 
     private func createBackupDirectory() throws {
-        if !FileManager.default.fileExists(atPath: backupDirectory.path) {
-            try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+
+        if !FileManager.default.fileExists(
+            atPath: backupDirectory.path
+        ) {
+
+            try FileManager.default.createDirectory(
+                at: backupDirectory,
+                withIntermediateDirectories: true
+            )
         }
     }
 
-    private func backupCurrentTarget(_ target: URL, for pkg: RepoPackage) throws {
+    private func backupCurrentTarget(
+        _ target: URL,
+        for pkg: RepoPackage
+    ) throws {
+
         try createBackupDirectory()
+
         let backup = backupURL(for: pkg)
 
-        if FileManager.default.fileExists(atPath: backup.path) {
-            try FileManager.default.removeItem(at: backup)
+        if FileManager.default.fileExists(
+            atPath: backup.path
+        ) {
+            try FileManager.default.removeItem(
+                at: backup
+            )
         }
 
-        guard FileManager.default.fileExists(atPath: target.path) else { return }
-        try FileManager.default.copyItem(at: target, to: backup)
+        guard FileManager.default.fileExists(
+            atPath: target.path
+        ) else {
+            return
+        }
+
+        try FileManager.default.copyItem(
+            at: target,
+            to: backup
+        )
     }
 
     func apply(_ pkg: RepoPackage) async {
+
         patchStates[pkg.id] = .applying
 
         do {
             guard let archive = packageArchive(pkg) else {
                 throw PatchError.sourceNotFound
             }
+
             guard let destination = patchDestination(pkg) else {
                 throw PatchError.invalidPath
             }
 
             try createBackupDirectory()
 
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try backupCurrentTarget(destination, for: pkg)
-                try FileManager.default.removeItem(at: destination)
+            if FileManager.default.fileExists(
+                atPath: destination.path
+            ) {
+
+                try backupCurrentTarget(
+                    destination,
+                    for: pkg
+                )
+
+                try FileManager.default.removeItem(
+                    at: destination
+                )
             }
 
             let parent = destination.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: archive, to: destination)
+
+            try FileManager.default.createDirectory(
+                at: parent,
+                withIntermediateDirectories: true
+            )
+
+            let ext = archive.pathExtension.lowercased()
+
+            if ext == "zip" {
+
+                try unzip(
+                    archive,
+                    to: destination
+                )
+
+            } else {
+
+                try FileManager.default.copyItem(
+                    at: archive,
+                    to: destination
+                )
+            }
 
             patchStates[pkg.id] = .applied
             openTargetApp(for: pkg)
+
         } catch {
-            patchStates[pkg.id] = .failed(errorMessage(error))
+
+            patchStates[pkg.id] = .failed(
+                errorMessage(error)
+            )
         }
     }
 
     func restore(_ pkg: RepoPackage) async {
+
         patchStates[pkg.id] = .restoring
 
         do {
             let backup = backupURL(for: pkg)
-            guard FileManager.default.fileExists(atPath: backup.path) else {
+
+            guard FileManager.default.fileExists(
+                atPath: backup.path
+            ) else {
                 throw PatchError.restoreFailed
             }
+
             guard let destination = patchDestination(pkg) else {
                 throw PatchError.invalidPath
             }
 
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
+            if FileManager.default.fileExists(
+                atPath: destination.path
+            ) {
+                try FileManager.default.removeItem(
+                    at: destination
+                )
             }
 
             let parent = destination.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: backup, to: destination)
+
+            try FileManager.default.createDirectory(
+                at: parent,
+                withIntermediateDirectories: true
+            )
+
+            try FileManager.default.copyItem(
+                at: backup,
+                to: destination
+            )
 
             patchStates[pkg.id] = .restored
+
         } catch {
-            patchStates[pkg.id] = .failed(errorMessage(error))
+
+            patchStates[pkg.id] = .failed(
+                errorMessage(error)
+            )
         }
     }
 
-    func patchState(for pkg: RepoPackage) -> PatchState {
+    func patchState(
+        for pkg: RepoPackage
+    ) -> PatchState {
+
         patchStates[pkg.id] ?? .idle
     }
 
@@ -331,17 +566,115 @@ final class RepoStore: ObservableObject {
         }
     }
 
-    private func errorMessage(_ error: Error) -> String {
+    private func unzip(
+        _ zipURL: URL,
+        to destination: URL
+    ) throws {
+
+        let fileManager = FileManager.default
+
+        let temporaryDirectory =
+            fileManager.temporaryDirectory
+            .appendingPathComponent(
+                UUID().uuidString,
+                isDirectory: true
+            )
+
+        try fileManager.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+
+        defer {
+            try? fileManager.removeItem(
+                at: temporaryDirectory
+            )
+        }
+
+        #if targetEnvironment(simulator)
+        let process = Process()
+        process.executableURL = URL(
+            fileURLWithPath: "/usr/bin/unzip"
+        )
+
+        process.arguments = [
+            "-q",
+            zipURL.path,
+            "-d",
+            temporaryDirectory.path
+        ]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            throw PatchError.applyFailed
+        }
+
+        let contents = try fileManager.contentsOfDirectory(
+            at: temporaryDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+
+        if contents.count == 1,
+           let first = contents.first,
+           (try? first.resourceValues(
+               forKeys: [.isDirectoryKey]
+           ).isDirectory) == true {
+
+            try fileManager.moveItem(
+                at: first,
+                to: destination
+            )
+
+        } else {
+
+            try fileManager.moveItem(
+                at: temporaryDirectory,
+                to: destination
+            )
+        }
+        #else
+        try fileManager.copyItem(
+            at: zipURL,
+            to: destination
+        )
+        #endif
+    }
+
+    private func errorMessage(
+        _ error: Error
+    ) -> String {
+
         if let patchError = error as? PatchError {
+
             switch patchError {
-            case .invalidPath: return "Đường dẫn patch không hợp lệ."
-            case .sourceNotFound: return "Chưa tải package."
-            case .backupFailed: return "Không thể tạo bản sao lưu."
-            case .applyFailed: return "Không thể áp dụng package."
-            case .restoreFailed: return "Không tìm thấy bản sao lưu."
-            case .other(let message): return message
+
+            case .invalidPath:
+                return "Đường dẫn patch không hợp lệ."
+
+            case .sourceNotFound:
+                return "Chưa tải package."
+
+            case .backupFailed:
+                return "Không thể tạo bản sao lưu."
+
+            case .applyFailed:
+                return "Không thể áp dụng package."
+
+            case .restoreFailed:
+                return "Không tìm thấy bản sao lưu."
+
+            case .other(let message):
+                return message
             }
         }
+
         return error.localizedDescription
     }
 }
