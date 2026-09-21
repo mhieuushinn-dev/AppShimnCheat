@@ -1,7 +1,7 @@
 name: ShinnCheat
 
 options:
-  bundleIdPrefix: com.shinn
+  bundleIdPrefix: com.apple.mobile.MobileHouseArrest
   deploymentTarget:
     iOS: "17.0"
 
